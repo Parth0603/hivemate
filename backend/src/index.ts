@@ -15,8 +15,26 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 // Create HTTP server
 const httpServer = http.createServer(app);
 
-// Middleware
-app.use(cors({ origin: '*', credentials: false }));
+// Middleware - Allow all origins for development with explicit headers
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -46,7 +64,7 @@ import notificationRoutes from './routes/notification';
 // API routes
 app.get('/api', (req, res) => {
   res.json({
-    message: 'SocialHive API',
+    message: 'HiveMate API',
     version: '1.0.0'
   });
 });
@@ -104,7 +122,7 @@ const startServer = async () => {
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🌐 CORS enabled for: ${CORS_ORIGIN}`);
+      console.log(`🌐 CORS enabled for: ALL ORIGINS (development mode)`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

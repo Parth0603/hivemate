@@ -105,7 +105,7 @@ export class WebSocketServer {
 
       // Send welcome message
       socket.emit('connected', {
-        message: 'Connected to SocialHive',
+        message: 'Connected to HiveMate',
         userId,
         timestamp: new Date()
       });

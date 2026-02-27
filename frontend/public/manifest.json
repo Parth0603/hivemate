@@ -1,6 +1,6 @@
 {
-  "name": "SocialHive - Professional Networking",
-  "short_name": "SocialHive",
+  "name": "HiveMate - Professional Networking",
+  "short_name": "HiveMate",
   "description": "Geo-powered professional networking platform for discovering nearby professionals and collaborating on projects",
   "start_url": "/",
   "display": "standalone",

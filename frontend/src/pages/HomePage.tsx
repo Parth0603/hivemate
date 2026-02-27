@@ -72,7 +72,9 @@ const HomePage = () => {
   return (
     <div className="homepage">
       <header className="homepage-header">
-        <h1 className="app-name">SocialHive</h1>
+        <h1 className="app-name">
+          Hive<span>Mate</span>
+        </h1>
         
         <div className="header-actions" ref={menuRef}>
           {!isPremium && (

@@ -1,7 +1,7 @@
-// Service Worker for SocialHive
-const CACHE_NAME = 'socialhive-v1';
-const STATIC_CACHE = 'socialhive-static-v1';
-const DYNAMIC_CACHE = 'socialhive-dynamic-v1';
+// Service Worker for HiveMate
+const CACHE_NAME = 'hivemate-v1';
+const STATIC_CACHE = 'hivemate-static-v1';
+const DYNAMIC_CACHE = 'hivemate-dynamic-v1';
 
 // Assets to cache on install
 const STATIC_ASSETS = [

@@ -48,8 +48,6 @@ export class LocationService {
     );
 
     // Invalidate nearby users cache for this area
-    // Keep direct call for backward compatibility and clear pattern keys effectively.
-    await redis.del(`nearby:*`);
     await CacheService.deletePattern('nearby:*');
 
     // Set cooldown
@@ -73,7 +71,6 @@ export class LocationService {
       { new: true }
     );
 
-    await redis.del(`nearby:*`);
     await CacheService.deletePattern('nearby:*');
   }
 

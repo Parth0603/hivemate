@@ -83,7 +83,7 @@
 }
 
 .form-group label {
-  color: #333;
+  color: #ffffff;
   font-weight: 600;
   font-size: 0.9rem;
 }
@@ -97,7 +97,7 @@
   font-size: 1rem;
   font-family: inherit;
   transition: border-color 0.2s;
-  background: white;
+  /* background: white; */
 }
 
 .form-group input:focus,

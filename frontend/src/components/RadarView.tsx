@@ -45,7 +45,7 @@ const RadarView = () => {
   });
   const [nearbyUsers, setNearbyUsers] = useState<RadarDot[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<RadarDot[]>([]);
-  const [distanceRange, setDistanceRange] = useState(5); // km
+  const [distanceRange, setDistanceRange] = useState(50); // km
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedUser, setSelectedUser] = useState<SelectedRadarUser | null>(null);
   const [focusedUserId, setFocusedUserId] = useState<string | null>(null);
@@ -210,10 +210,10 @@ const RadarView = () => {
 
       syncRadarData();
 
-      // Set up auto-refresh interval (every 20 seconds)
+      // Set up auto-refresh interval (every 10 seconds)
       const intervalId = setInterval(() => {
         syncRadarData();
-      }, 20000);
+      }, 10000);
 
       return () => clearInterval(intervalId);
     }
@@ -377,20 +377,65 @@ const RadarView = () => {
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Draw radar circles
-    ctx.strokeStyle = 'rgba(102, 126, 234, 0.2)';
-    ctx.lineWidth = 2;
+    // Draw radar circles with subtle colors
+    ctx.strokeStyle = 'rgba(0, 150, 255, 0.15)';
+    ctx.lineWidth = 1;
     for (let i = 1; i <= 3; i++) {
       ctx.beginPath();
       ctx.arc(centerX, centerY, (maxRadius / 3) * i, 0, Math.PI * 2);
       ctx.stroke();
     }
 
+    // Draw crosshair
+    ctx.strokeStyle = 'rgba(0, 150, 255, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY - maxRadius);
+    ctx.lineTo(centerX, centerY + maxRadius);
+    ctx.moveTo(centerX - maxRadius, centerY);
+    ctx.lineTo(centerX + maxRadius, centerY);
+    ctx.stroke();
+
+    // Draw scanning line with gradient
+    const currentTime = Date.now();
+    const scanAngle = (currentTime / 30) % 360;
+    const scanRad = (scanAngle * Math.PI) / 180;
+    
+    const gradient = ctx.createLinearGradient(
+      centerX,
+      centerY,
+      centerX + Math.cos(scanRad) * maxRadius,
+      centerY + Math.sin(scanRad) * maxRadius
+    );
+    gradient.addColorStop(0, 'rgba(0, 150, 255, 0)');
+    gradient.addColorStop(0.5, 'rgba(0, 150, 255, 0.2)');
+    gradient.addColorStop(1, 'rgba(0, 150, 255, 0.6)');
+
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(
+      centerX + Math.cos(scanRad) * maxRadius,
+      centerY + Math.sin(scanRad) * maxRadius
+    );
+    ctx.stroke();
+
+    // Draw scan arc (trail effect)
+    ctx.fillStyle = 'rgba(0, 150, 255, 0.05)';
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, maxRadius, scanRad - 0.5, scanRad);
+    ctx.closePath();
+    ctx.fill();
+
     // Draw center point (user)
-    ctx.fillStyle = '#667eea';
+    ctx.fillStyle = '#0096ff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#0096ff';
     ctx.beginPath();
     ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
     const sortedUsers = [...filteredUsers].sort((a, b) => a.distance - b.distance);
     const drawableUsers: Array<{
@@ -400,21 +445,21 @@ const RadarView = () => {
     }> = [];
 
     sortedUsers.forEach((user) => {
-      const distanceRatio = user.distance / (distanceRange * 1000); // Convert km to meters
+      const distanceRatio = user.distance / (distanceRange * 1000);
       if (distanceRatio > 1) return;
 
-      // Calculate angle based on actual coordinates
       const latDiff = user.latitude - userLocation.lat;
       const lngDiff = user.longitude - userLocation.lng;
       const angle = Math.atan2(lngDiff, latDiff);
       
       const radius = distanceRatio * maxRadius;
       const x = centerX + Math.sin(angle) * radius;
-      const y = centerY - Math.cos(angle) * radius; // Negative because canvas Y is inverted
+      const y = centerY - Math.cos(angle) * radius;
       drawableUsers.push({ user, x, y });
     });
 
-    const minimumSpacing = 26;
+    const isMobile = window.innerWidth <= 768;
+    const minimumSpacing = isMobile ? 46 : 38;
     for (let pass = 0; pass < 4; pass++) {
       for (let i = 0; i < drawableUsers.length; i++) {
         for (let j = i + 1; j < drawableUsers.length; j++) {
@@ -448,17 +493,19 @@ const RadarView = () => {
       }
     };
 
-    // Draw nearby users (unfocused first)
+    // Draw nearby users
     drawableUsers.forEach(({ user, x, y }) => {
       const isFocused = focusedUserId === user.userId;
       const isHovered = hoverLabel?.userId === user.userId;
-      const avatarRadius = isHovered || isFocused ? 13 : 11;
+      const isMobile = window.innerWidth <= 768;
+      const baseRadius = isMobile ? 22 : 17;
+      const avatarRadius = isHovered || isFocused ? baseRadius + 4 : baseRadius;
       const drawPoint = { x, y };
       clampToRadar(drawPoint, avatarRadius + 2);
       const drawX = drawPoint.x;
       const drawY = drawPoint.y;
 
-      const color = user.gender === 'female' ? '#ed64a6' : user.gender === 'male' ? '#4299e1' : '#9ca3af';
+      const color = user.gender === 'female' ? '#ff0080' : user.gender === 'male' ? '#0096ff' : '#9ca3af';
       const hasFocusMode = Boolean(focusedUserId);
       ctx.globalAlpha = hasFocusMode && !isFocused ? 0.28 : 1;
       ctx.filter = hasFocusMode && !isFocused ? 'blur(1.5px)' : 'none';
@@ -479,12 +526,12 @@ const RadarView = () => {
       ctx.restore();
 
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = isMobile ? 3 : 2;
       ctx.beginPath();
       ctx.arc(drawX, drawY, avatarRadius, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = isMobile ? 16 : 12;
       ctx.shadowColor = color;
       ctx.beginPath();
       ctx.arc(drawX, drawY, avatarRadius, 0, Math.PI * 2);
@@ -493,24 +540,17 @@ const RadarView = () => {
       ctx.globalAlpha = 1;
       ctx.filter = 'none';
 
-      // Store position for click detection
       (user as any)._canvasX = drawX;
       (user as any)._canvasY = drawY;
       (user as any)._hitRadius = avatarRadius + 8;
     });
 
-    // Draw focused marker ring on top so selected user pops.
     if (focusedUserId) {
       const focusedUser = sortedUsers.find((u) => u.userId === focusedUserId);
       if (focusedUser && (focusedUser as any)._canvasX !== undefined) {
         const x = (focusedUser as any)._canvasX;
         const y = (focusedUser as any)._canvasY;
-        const ringColor =
-          focusedUser.gender === 'female'
-            ? '#ed64a6'
-            : focusedUser.gender === 'male'
-              ? '#4299e1'
-              : '#64748b';
+        const ringColor = focusedUser.gender === 'female' ? '#ff0080' : focusedUser.gender === 'male' ? '#0096ff' : '#64748b';
 
         ctx.strokeStyle = ringColor;
         ctx.lineWidth = 3;
@@ -526,7 +566,6 @@ const RadarView = () => {
       }
     }
 
-    // Draw hover label directly on radar canvas
     if (hoverLabel) {
       const label = hoverLabel.name || 'Unknown User';
       ctx.font = 'bold 12px Arial';
@@ -537,11 +576,14 @@ const RadarView = () => {
       const labelX = hoverLabel.x - labelWidth / 2;
       const labelY = hoverLabel.y - 30;
 
-      ctx.fillStyle = 'rgba(17, 24, 39, 0.9)';
+      ctx.fillStyle = 'rgba(0, 150, 255, 0.95)';
       ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
       ctx.fillStyle = '#ffffff';
       ctx.fillText(label, labelX + paddingX, labelY + 15);
     }
+
+    // Request next frame for continuous scanning animation
+    requestAnimationFrame(drawRadar);
   };
 
   const getAvatarImage = (user: RadarDot): HTMLImageElement | null => {
@@ -606,7 +648,7 @@ const RadarView = () => {
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords) return;
 
-    const hitRadius = window.innerWidth <= 768 ? 28 : 18;
+    const hitRadius = window.innerWidth <= 768 ? 35 : 22;
     const tappedUser = findUserAtPoint(coords.x, coords.y, hitRadius);
     if (tappedUser) {
       console.log('Clicked on user:', tappedUser.userId, 'Name:', tappedUser.name);
@@ -625,7 +667,8 @@ const RadarView = () => {
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords) return;
 
-    const hoveredUser = findUserAtPoint(coords.x, coords.y, 20);
+    const hitRadius = window.innerWidth <= 768 ? 35 : 28;
+    const hoveredUser = findUserAtPoint(coords.x, coords.y, hitRadius);
 
     // Update cursor and show tooltip
     if (hoveredUser) {
@@ -650,7 +693,7 @@ const RadarView = () => {
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords) return;
 
-    const hitRadius = window.innerWidth <= 768 ? 30 : 18;
+    const hitRadius = window.innerWidth <= 768 ? 40 : 28;
     const tappedUser = findUserAtPoint(coords.x, coords.y, hitRadius);
     if (tappedUser) {
       setSelectedUser({
@@ -692,175 +735,181 @@ const RadarView = () => {
 
   return (
     <div className="radar-view">
-      <div className="radar-controls">
-        <div className="visibility-toggle">
-          <label className="toggle-label">
-            <span className={visibilityMode === 'explore' ? 'active' : ''}>
-              {visibilityMode === 'explore' ? 'Explore Mode' : 'Vanish Mode'}
-            </span>
-            <input
-              type="checkbox"
-              checked={visibilityMode === 'explore'}
-              onChange={toggleVisibilityMode}
-            />
-            <span className="toggle-slider"></span>
-          </label>
+      <div className="radar-unified-container">
+        {/* Controls Section */}
+        <div className="radar-controls">
+          <div className="visibility-toggle">
+            <label className="toggle-label">
+              <span className={visibilityMode === 'explore' ? 'active' : ''}>
+                {visibilityMode === 'explore' ? 'Explore Mode' : 'Vanish Mode'}
+              </span>
+              <input
+                type="checkbox"
+                checked={visibilityMode === 'explore'}
+                onChange={toggleVisibilityMode}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div className="distance-control">
+            <label>
+              Distance: {distanceRange} km
+              <input
+                type="range"
+                min="1"
+                max="1000"
+                value={distanceRange}
+                onChange={(e) => setDistanceRange(parseInt(e.target.value))}
+                disabled={visibilityMode === 'vanish'}
+              />
+            </label>
+          </div>
+
+          <button
+            className="filter-toggle-btn"
+            onClick={() => setShowFilters(!showFilters)}
+            disabled={visibilityMode === 'vanish'}
+          >
+            Filters {getActiveFilterCount() > 0 && `(${getActiveFilterCount()})`}
+          </button>
         </div>
 
-        <div className="distance-control">
-          <label>
-            Distance: {distanceRange} km
-            <input
-              type="range"
-              min="1"
-              max="50"
-              value={distanceRange}
-              onChange={(e) => setDistanceRange(parseInt(e.target.value))}
-              disabled={visibilityMode === 'vanish'}
-            />
-          </label>
-        </div>
-
-        <button
-          className="filter-toggle-btn"
-          onClick={() => setShowFilters(!showFilters)}
-          disabled={visibilityMode === 'vanish'}
-        >
-          Filters {getActiveFilterCount() > 0 && `(${getActiveFilterCount()})`}
-        </button>
-      </div>
-
-      {showFilters && visibilityMode === 'explore' && (
-        <div className="radar-filter-panel">
-          <div className="filter-header">
-            <h4>Filter Nearby Users</h4>
-            {getActiveFilterCount() > 0 && (
-              <button className="clear-filters-btn" onClick={clearFilters}>
-                Clear All
-              </button>
-            )}
-          </div>
-
-          <div className="filter-group">
-            <label>Gender</label>
-            <select
-              value={filters.gender}
-              onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
-            >
-              <option value="">All</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </div>
-
-          <div className="filter-results-info">
-            Showing {filteredUsers.length} of {nearbyUsers.length} users
-          </div>
-        </div>
-      )}
-
-      <div className="radar-container">
-        {visibilityMode === 'vanish' ? (
-          <div className="vanish-message">
-            <h3>You are in Vanish Mode</h3>
-            <p>Turn on Explore Mode to discover people nearby</p>
-          </div>
-        ) : (
-          <>
-            <canvas
-              ref={canvasRef}
-              width={600}
-              height={600}
-              onClick={handleCanvasClick}
-              onMouseMove={handleCanvasMouseMove}
-              onPointerDown={handleCanvasPointerDown}
-              onMouseLeave={handleCanvasMouseLeave}
-              className="radar-canvas"
-            />
-            {loading && nearbyUsers.length === 0 && (
-              <div className="radar-loading">Searching...</div>
-            )}
-            {!loading && filteredUsers.length === 0 && nearbyUsers.length > 0 && (
-              <div className="no-users-message">
-                No users match your filters
-              </div>
-            )}
-            {!loading && nearbyUsers.length === 0 && (
-              <div className="no-users-message">
-                No users nearby in explore mode
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {visibilityMode === 'explore' && (
-        <div className="nearby-list-card">
-          <div className="nearby-list-header">
-            <h4>Profiles In Range ({usersInRange.length})</h4>
-            {focusedUserId && (
-              <button
-                className="clear-focus-btn"
-                onClick={() => setFocusedUserId(null)}
-                type="button"
-              >
-                Clear Focus
-              </button>
-            )}
-          </div>
-
-          {usersInRange.length === 0 ? (
-            <div className="nearby-empty">No profiles within current filter and distance.</div>
-          ) : (
-            <div className="nearby-list">
-              {usersInRange.map((user) => {
-                const isFocused = focusedUserId === user.userId;
-                return (
-                  <div
-                    key={user.userId}
-                    className={`nearby-row ${isFocused ? 'focused' : ''}`}
-                    onClick={() =>
-                      setSelectedUser({
-                        userId: user.userId,
-                        name: user.name,
-                        photo: user.photo
-                      })
-                    }
-                  >
-                    <div className="nearby-main">
-                      <div className={`nearby-dot ${user.gender === 'female' ? 'female' : user.gender === 'male' ? 'male' : 'other'}`}></div>
-                      <div className="nearby-meta">
-                        <div className="nearby-name">{user.name || 'Unknown User'}</div>
-                        <div className="nearby-distance">{(user.distance / 1000).toFixed(2)} km away</div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className={`eye-focus-btn ${isFocused ? 'active' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFocusedUserId((prev) => (prev === user.userId ? null : user.userId));
-                      }}
-                      aria-label={isFocused ? 'Remove focus' : 'Focus on this user'}
-                      title={isFocused ? 'Remove Focus' : 'Focus On Radar'}
-                    >
-                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                        <path
-                          d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                        />
-                        <circle cx="12" cy="12" r="3.1" fill="currentColor" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
+        {/* Filter Panel */}
+        {showFilters && visibilityMode === 'explore' && (
+          <div className="radar-filter-panel">
+            <div className="filter-header">
+              <h4>Filter Nearby Users</h4>
+              {getActiveFilterCount() > 0 && (
+                <button className="clear-filters-btn" onClick={clearFilters}>
+                  Clear All
+                </button>
+              )}
             </div>
+
+            <div className="filter-group">
+              <label>Gender</label>
+              <select
+                value={filters.gender}
+                onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+
+            <div className="filter-results-info">
+              Showing {filteredUsers.length} of {nearbyUsers.length} users
+            </div>
+          </div>
+        )}
+
+        {/* Radar Canvas Section */}
+        <div className="radar-container">
+          {visibilityMode === 'vanish' ? (
+            <div className="vanish-message">
+              <h3>You are in Vanish Mode</h3>
+              <p>Turn on Explore Mode to discover people nearby</p>
+            </div>
+          ) : (
+            <>
+              <canvas
+                ref={canvasRef}
+                width={700}
+                height={700}
+                onClick={handleCanvasClick}
+                onMouseMove={handleCanvasMouseMove}
+                onPointerDown={handleCanvasPointerDown}
+                onMouseLeave={handleCanvasMouseLeave}
+                className="radar-canvas"
+              />
+              {loading && (
+                <div className="radar-loading">Updating...</div>
+              )}
+              {!loading && filteredUsers.length === 0 && nearbyUsers.length > 0 && (
+                <div className="no-users-message">
+                  No users match your filters
+                </div>
+              )}
+              {!loading && nearbyUsers.length === 0 && (
+                <div className="no-users-message">
+                  No users nearby in explore mode
+                </div>
+              )}
+            </>
           )}
         </div>
-      )}
+
+        {/* Nearby List Section */}
+        {visibilityMode === 'explore' && (
+          <div className="nearby-list-section">
+            <div className="nearby-list-header">
+              <h4>Profiles In Range ({usersInRange.length})</h4>
+              {focusedUserId && (
+                <button
+                  className="clear-focus-btn"
+                  onClick={() => setFocusedUserId(null)}
+                  type="button"
+                >
+                  Clear Focus
+                </button>
+              )}
+            </div>
+
+            {usersInRange.length === 0 ? (
+              <div className="nearby-empty">No profiles within current filter and distance.</div>
+            ) : (
+              <div className="nearby-list">
+                {usersInRange.map((user) => {
+                  const isFocused = focusedUserId === user.userId;
+                  return (
+                    <div
+                      key={user.userId}
+                      className={`nearby-row ${isFocused ? 'focused' : ''}`}
+                      onClick={() =>
+                        setSelectedUser({
+                          userId: user.userId,
+                          name: user.name,
+                          photo: user.photo
+                        })
+                      }
+                    >
+                      <div className="nearby-main">
+                        <div className={`nearby-dot ${user.gender === 'female' ? 'female' : user.gender === 'male' ? 'male' : 'other'}`}></div>
+                        <div className="nearby-meta">
+                          <div className="nearby-name">{user.name || 'Unknown User'}</div>
+                          <div className="nearby-distance">{(user.distance / 1000).toFixed(2)} km away</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={`eye-focus-btn ${isFocused ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFocusedUserId((prev) => (prev === user.userId ? null : user.userId));
+                        }}
+                        aria-label={isFocused ? 'Remove focus' : 'Focus on this user'}
+                        title={isFocused ? 'Remove Focus' : 'Focus On Radar'}
+                      >
+                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                          <path
+                            d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                          />
+                          <circle cx="12" cy="12" r="3.1" fill="currentColor" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {selectedUser && (
         <ProfilePreviewModal

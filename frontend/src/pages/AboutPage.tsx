@@ -10,14 +10,14 @@ const AboutPage = () => {
         <button className="back-button" onClick={() => navigate(-1)}>
           ← Back
         </button>
-        <h1>About SocialHive</h1>
+        <h1>About HiveMate</h1>
       </header>
 
       <main className="about-content">
         <section className="about-section">
-          <h2>🐝 What is SocialHive?</h2>
+          <h2>🐝 What is HiveMate?</h2>
           <p>
-            SocialHive is a geo-powered professional networking ecosystem that merges local 
+            HiveMate is a geo-powered professional networking ecosystem that merges local 
             connection discovery with professional collaboration. We help professionals discover 
             nearby talent, build meaningful work relationships, and collaborate on projects through 
             an innovative radar-based interface.
@@ -119,14 +119,14 @@ const AboutPage = () => {
             Have questions or feedback? We'd love to hear from you!
           </p>
           <div className="contact-info">
-            <p>Email: <a href="mailto:support@socialhive.com">support@socialhive.com</a></p>
+            <p>Email: <a href="mailto:support@hivemate.com">support@hivemate.com</a></p>
             <p>Follow us on social media for updates and tips</p>
           </div>
         </section>
 
         <section className="about-section version-info">
           <p className="version">Version 1.0.0</p>
-          <p className="copyright">© 2026 SocialHive. All rights reserved.</p>
+          <p className="copyright">© 2026 HiveMate. All rights reserved.</p>
         </section>
       </main>
     </div>
