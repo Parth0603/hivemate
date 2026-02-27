@@ -210,12 +210,12 @@ socialhive-platform/
 
 ## Development
 
-### Documentation
+## Documentation
 
 - [QUICK_START.md](QUICK_START.md) - Fast one-command setup guide
 - [SETUP_GUIDE.md](SETUP_GUIDE.md) - Detailed installation and configuration
-- [PROJECT_COMPLETION_SUMMARY.md](PROJECT_COMPLETION_SUMMARY.md) - Project overview and features
-- [PROPERTY_TEST_COMPLETION_SUMMARY.md](PROPERTY_TEST_COMPLETION_SUMMARY.md) - Testing details
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 
 ### Code Style
 
