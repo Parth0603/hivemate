@@ -1,0 +1,353 @@
+.call-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(2, 6, 23, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: call-overlay-fade var(--transition-normal);
+}
+
+.call-modal {
+  position: relative;
+  width: min(1024px, 100%);
+  height: min(92vh, 760px);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #020617;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 80px rgba(2, 6, 23, 0.6);
+  animation: call-modal-in var(--transition-normal);
+}
+
+.call-ringing {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: radial-gradient(circle at 10% 20%, #1e293b, #020617 65%);
+}
+
+.caller-info {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.caller-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  font-weight: 700;
+  background: linear-gradient(145deg, #2563eb, #8b5cf6);
+  margin-bottom: var(--space-3);
+}
+
+.caller-info h2 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.caller-info p {
+  margin-top: var(--space-2);
+  color: #cbd5e1;
+}
+
+.call-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.accept-button,
+.reject-button {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-normal),
+    filter var(--transition-normal);
+}
+
+.accept-button:hover,
+.reject-button:hover {
+  transform: translateY(-1px);
+}
+
+.accept-button {
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.3);
+}
+
+.reject-button {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.3);
+}
+
+.call-active {
+  position: relative;
+  height: 100%;
+}
+
+.video-container {
+  position: absolute;
+  inset: 0;
+  background: #020617;
+}
+
+.call-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 16px 18px 30px;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.85), rgba(2, 6, 23, 0));
+}
+
+.call-top-bar h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.call-top-bar p {
+  margin: 6px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #020617;
+}
+
+.remote-video.audio-fallback {
+  opacity: 0.18;
+}
+
+.local-video {
+  position: absolute;
+  z-index: 6;
+  right: 18px;
+  top: 76px;
+  width: clamp(120px, 22vw, 240px);
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  transform: scaleX(-1);
+  background: #0f172a;
+}
+
+.local-video-unavailable {
+  position: absolute;
+  z-index: 6;
+  right: 18px;
+  top: 76px;
+  width: clamp(120px, 22vw, 240px);
+  aspect-ratio: 9 / 16;
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: rgba(15, 23, 42, 0.8);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  text-align: center;
+  padding: 8px;
+}
+
+.voice-call-display {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.caller-avatar-large {
+  width: 140px;
+  height: 140px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56px;
+  font-weight: 700;
+  background: linear-gradient(145deg, #2563eb, #8b5cf6);
+  margin-bottom: 18px;
+}
+
+.voice-call-display h2 {
+  margin: 0;
+  font-size: 34px;
+}
+
+.call-status-text {
+  margin-top: var(--space-3);
+  color: #cbd5e1;
+}
+
+.call-controls {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--space-5);
+  width: min(96%, 560px);
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.74);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.control-button {
+  min-width: 104px;
+  height: 46px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform var(--transition-fast),
+    background-color var(--transition-fast),
+    box-shadow var(--transition-normal);
+}
+
+.control-button:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.control-button.active {
+  background: #f59e0b;
+}
+
+.control-button.end-call {
+  background: #dc2626;
+}
+
+.control-button .icon {
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.call-ended {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-error {
+  position: absolute;
+  z-index: 9;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 72px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.92);
+  color: #fff;
+  font-size: 13px;
+}
+
+.call-error p {
+  margin: 0;
+}
+
+@keyframes call-overlay-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes call-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .call-modal-overlay {
+    padding: 0;
+  }
+
+  .call-modal {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .call-top-bar {
+    padding: 14px 14px 24px;
+  }
+
+  .call-top-bar h3 {
+    font-size: 18px;
+  }
+
+  .local-video,
+  .local-video-unavailable {
+    right: 12px;
+    top: 66px;
+    width: 112px;
+  }
+
+  .call-controls {
+    bottom: 18px;
+    width: calc(100% - 20px);
+    gap: 8px;
+  }
+
+  .control-button {
+    min-width: 88px;
+    height: 42px;
+  }
+
+  .caller-avatar-large {
+    width: 112px;
+    height: 112px;
+    font-size: 44px;
+  }
+
+  .voice-call-display h2 {
+    font-size: 26px;
+  }
+}

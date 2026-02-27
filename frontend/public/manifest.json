@@ -1,0 +1,36 @@
+{
+  "name": "SocialHive - Professional Networking",
+  "short_name": "SocialHive",
+  "description": "Geo-powered professional networking platform for discovering nearby professionals and collaborating on projects",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00ff88",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "social", "networking"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Home",
+      "short_name": "Home",
+      "description": "Go to home page",
+      "url": "/home",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "description": "Open chat",
+      "url": "/chat",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "socialhive-backend",
+  "version": "1.0.0",
+  "description": "SocialHive Platform Backend API",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^8.1.1",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "socket.io": "^4.6.1",
+    "aws-sdk": "^2.1550.0",
+    "stripe": "^14.14.0",
+    "openai": "^4.26.0",
+    "multer": "^1.4.5-lts.1",
+    "simple-peer": "^9.11.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.19",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/cors": "^2.8.17",
+    "@types/multer": "^1.4.11",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}
