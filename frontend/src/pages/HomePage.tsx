@@ -4,6 +4,7 @@ import RadarView from '../components/RadarView';
 import GigFeed from '../components/GigFeed';
 import NotificationBell from '../components/NotificationBell';
 import AppContainer from '../components/ui/AppContainer';
+import { useToast } from '../components/Toast';
 import './HomePage.css';
 
 type ViewMode = 'partner' | 'teammate';
@@ -78,6 +79,7 @@ const LogoutIcon = () => (
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>('partner');
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -131,6 +133,10 @@ const HomePage = () => {
   }, [viewMode]);
 
   const activateMode = (mode: ViewMode) => {
+    if (mode === 'teammate') {
+      showToast('Find a Team Mate is under development and will be available soon.', 'info', 3200);
+      return;
+    }
     setViewMode(mode);
   };
 
@@ -258,13 +264,14 @@ const HomePage = () => {
                 Find a Partner
               </button>
               <button
-                className={`toggle-option ${viewMode === 'teammate' ? 'active' : ''}`}
+                className={`toggle-option toggle-option-disabled ${viewMode === 'teammate' ? 'active' : ''}`}
                 onClick={() => activateMode('teammate')}
                 onKeyDown={(event) => handleTabKeyDown(1, event)}
                 role="tab"
                 id="home-tab-teammate"
                 aria-controls="home-panel-teammate"
                 aria-selected={viewMode === 'teammate'}
+                aria-label="Find a Team Mate (under development)"
                 tabIndex={viewMode === 'teammate' ? 0 : -1}
                 ref={(el) => { tabRefs.current[1] = el; }}
               >

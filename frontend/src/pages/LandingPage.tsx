@@ -148,12 +148,12 @@ const LandingPage = () => {
 
         <section className="landing-hero">
           <div className="landing-copy">
-            <p className="landing-eyebrow">PROFESSIONAL NETWORKING, REIMAGINED</p>
+            <p className="landing-eyebrow">NETWORKING, REIMAGINED</p>
             <h1 className="landing-title">
-              Meet people nearby before the opportunity is gone.
-            </h1>
+              Meet people nearby before the moment passes.
+            </h1> 
             <p className="landing-subtitle">
-              HiveMate helps you discover collaborators, teammates, and meaningful connections around you in real time.
+              Discover collaborators, teammates and meaningful connections around you in real time.
             </p>
 
             <div className="landing-cta-row">
@@ -225,7 +225,7 @@ const LandingPage = () => {
               </svg>
             </div>
             <h4>Nearby Discovery</h4>
-            <p>See people around your range and filter by niche before you connect.</p>
+            <p>Discover nearby people and build meaningful connections.</p>
           </article>
           <article className="landing-feature-card">
             <div className="landing-feature-icon">
@@ -234,8 +234,8 @@ const LandingPage = () => {
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
             </div>
-            <h4>Private by Default</h4>
-            <p>Encrypted messages and controlled visibility with explore and vanish modes.</p>
+            <h4>Privacy First</h4>
+            <p>End to end encrypted chat and explore/vanish  profile visibility controls.</p>
           </article>
           <article className="landing-feature-card">
             <div className="landing-feature-icon">
@@ -245,7 +245,7 @@ const LandingPage = () => {
               </svg>
             </div>
             <h4>Build and Grow</h4>
-            <p>Find teammates, post gigs, and move from chat to call in one platform.</p>
+            <p>Find teammates or partner, create opportunities and grow your network in one platform.</p>
           </article>
         </section>
       </div>

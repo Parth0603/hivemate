@@ -259,6 +259,24 @@
   background: #7c9bdacc;
 }
 
+.toggle-option-disabled {
+  position: relative;
+}
+
+.toggle-option-disabled::after {
+  content: "Soon";
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  color: #d9e8ff;
+  background: rgba(17, 37, 74, 0.55);
+  border: 1px solid rgba(167, 194, 235, 0.32);
+}
+
 .toggle-option:focus-visible {
   z-index: 2;
 }
