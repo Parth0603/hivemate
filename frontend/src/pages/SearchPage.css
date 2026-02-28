@@ -313,10 +313,23 @@
   font-size: 1.1rem;
 }
 
+.username {
+  color: #4a5fd2;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0.1rem 0 0.2rem;
+}
+
 .profession {
   color: #667eea;
   font-size: 0.9rem;
   margin: 0.25rem 0;
+}
+
+.age {
+  color: #666;
+  font-size: 0.84rem;
+  margin: 0.15rem 0;
 }
 
 .location {

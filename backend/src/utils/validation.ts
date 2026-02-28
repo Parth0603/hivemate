@@ -5,10 +5,16 @@ export interface ValidationResult {
 
 export const validateProfile = (data: any): ValidationResult => {
   const errors: string[] = [];
+  const usernameRegex = /^[a-z0-9_]{3,20}$/;
+  const phoneRegex = /^[0-9+\-\s()]{7,20}$/;
 
   // Required fields
   if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
     errors.push('Name is required');
+  }
+
+  if (!data.username || typeof data.username !== 'string' || !usernameRegex.test(data.username.trim().toLowerCase())) {
+    errors.push('Username is required and must be 3-20 characters (letters, numbers, underscore)');
   }
 
   if (!data.age || typeof data.age !== 'number') {
@@ -19,6 +25,19 @@ export const validateProfile = (data: any): ValidationResult => {
 
   if (!data.gender || !['male', 'female', 'other'].includes(data.gender)) {
     errors.push('Gender is required and must be male, female, or other');
+  }
+
+  if (!data.religion || typeof data.religion !== 'string' || data.religion.trim().length === 0) {
+    errors.push('Religion is required');
+  }
+  if (String(data.religion || '').toLowerCase() === 'other') {
+    if (!data.religionOther || typeof data.religionOther !== 'string' || data.religionOther.trim().length === 0) {
+      errors.push('Please specify religion when selecting Other');
+    }
+  }
+
+  if (!data.phone || typeof data.phone !== 'string' || !phoneRegex.test(data.phone.trim())) {
+    errors.push('Phone number is required and must be valid');
   }
 
   if (!data.place || typeof data.place !== 'string' || data.place.trim().length === 0) {

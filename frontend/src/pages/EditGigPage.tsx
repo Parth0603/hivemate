@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './CreateGigPage.css';
 
 interface GigFormData {
@@ -33,7 +34,7 @@ const EditGigPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_URL = getApiBaseUrl();
 
   useEffect(() => {
     fetchGig();

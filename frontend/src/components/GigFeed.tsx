@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './GigFeed.css';
 
 interface Gig {
@@ -39,7 +40,7 @@ const GigFeed = ({ onCreateGig }: GigFeedProps) => {
   const [skillFilter, setSkillFilter] = useState('');
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_URL = getApiBaseUrl();
 
   useEffect(() => {
     setPage(1);

@@ -14,6 +14,19 @@ interface Notification {
   createdAt: string;
 }
 
+const BellIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path
+      d="M12 4.5a4.2 4.2 0 0 0-4.2 4.2v2.6c0 1.4-.6 2.7-1.6 3.7L5 16.2h14l-1.2-1.2a5.2 5.2 0 0 1-1.6-3.7V8.7A4.2 4.2 0 0 0 12 4.5Z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    />
+    <path d="M10.2 18a1.8 1.8 0 0 0 3.6 0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
 const normalizeNotification = (notification: any): Notification => ({
   _id: notification?._id || notification?.id || `${Date.now()}-${Math.random()}`,
   userId: notification?.userId || '',
@@ -204,7 +217,9 @@ const NotificationBell = () => {
         aria-expanded={isOpen}
         aria-haspopup="dialog"
       >
-        <span className="bell-icon">{'\u{1F514}'}</span>
+        <span className="bell-icon">
+          <BellIcon />
+        </span>
         {unreadCount > 0 && (
           <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
         )}

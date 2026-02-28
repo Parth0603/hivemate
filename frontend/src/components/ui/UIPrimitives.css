@@ -10,6 +10,7 @@
 
 .ui-app-container.size-lg {
   width: min(1400px, 100%);
+  padding-bottom: 15px;
 }
 
 .ui-page-header {

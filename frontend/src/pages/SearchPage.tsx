@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './SearchPage.css';
 
 interface SearchFilters {
@@ -16,6 +17,8 @@ interface Profile {
   _id: string;
   userId: string;
   name: string;
+  username?: string;
+  age?: number;
   profession: string;
   skills: string[];
   bio: string;
@@ -59,7 +62,7 @@ const SearchPage = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showFilters, setShowFilters] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_URL = getApiBaseUrl();
 
   // Common skills for autocomplete
   const commonSkills = [
@@ -107,6 +110,12 @@ const SearchPage = () => {
           page: 1,
           limit: 20
         };
+
+        if (filters.query.trim()) {
+          const rawQuery = filters.query.trim();
+          body.query = rawQuery;
+          body.username = rawQuery.startsWith('@') ? rawQuery.slice(1) : rawQuery;
+        }
 
         if (filters.skills.length > 0) {
           body.skills = filters.skills;
@@ -254,7 +263,7 @@ const SearchPage = () => {
           <input
             type="text"
             className="search-bar"
-            placeholder={searchMode === 'profiles' ? 'Search by name, profession, or skills...' : 'Search gigs...'}
+            placeholder={searchMode === 'profiles' ? 'Search by username, name, profession, or skills...' : 'Search gigs...'}
             value={filters.query}
             onChange={(e) => setFilters({ ...filters, query: e.target.value })}
           />
@@ -404,7 +413,9 @@ const SearchPage = () => {
                       )}
                       <div className="profile-info">
                         <h3>{profile.name}</h3>
+                        {profile.username && <p className="username">@{profile.username}</p>}
                         <p className="profession">{profile.profession}</p>
+                        {typeof profile.age === 'number' && <p className="age">{profile.age} yrs</p>}
                         <p className="location">📍 {profile.place}</p>
                       </div>
                     </div>

@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 10020;
   padding: 1rem;
 }
 
@@ -20,6 +20,7 @@
   max-height: 90vh;
   overflow-y: auto;
   position: relative;
+  z-index: 10021;
   border: 1px solid var(--border-subtle);
   box-shadow: 0 24px 60px rgba(2, 6, 23, 0.35);
 }
@@ -60,6 +61,8 @@
 
 .profile-preview {
   padding: var(--space-6);
+  
+  z-index: 5;
 }
 
 .profile-header {
@@ -229,10 +232,12 @@
 @media (max-width: 768px) {
   .modal-content {
     max-height: 95vh;
+    z-index: 6;
   }
 
   .profile-preview {
     padding: var(--space-5);
+    z-index: 5;
   }
 
   .profile-header h2 {

@@ -7,10 +7,12 @@
 
 /* Unified Container - All sections in one white card */
 .radar-unified-container {
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  background: linear-gradient(180deg, #fdfefe 0%, #f6f9ff 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(151, 182, 236, 0.28);
+  box-shadow:
+    0 18px 36px rgba(17, 33, 62, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -19,14 +21,14 @@
 
 /* Radar Controls */
 .radar-controls {
-  background: #f8fafd;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(120deg, #0c2348 0%, #183666 46%, #2b4f81 100%);
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid rgba(171, 200, 255, 0.24);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .visibility-toggle {
@@ -41,11 +43,11 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 1rem;
-  color: #0f172a;
+  color: #dce9ff;
 }
 
 .toggle-label span.active {
-  color: #667eea;
+  color: #ffffff;
 }
 
 .toggle-label input[type="checkbox"] {
@@ -55,7 +57,7 @@
 .toggle-slider {
   width: 50px;
   height: 26px;
-  background: #cbd5e0;
+  background: rgba(182, 205, 243, 0.48);
   border-radius: 50px;
   position: relative;
   transition: all 0.3s ease;
@@ -74,7 +76,7 @@
 }
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider {
-  background: #667eea;
+  background: #5b79f8;
 }
 
 .toggle-label input[type="checkbox"]:checked + .toggle-slider::after {
@@ -91,14 +93,14 @@
   flex-direction: column;
   gap: 0.5rem;
   font-weight: 600;
-  color: #0f172a;
+  color: #dce9ff;
 }
 
 .distance-control input[type="range"] {
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: #e2e8f0;
+  background: rgba(214, 228, 252, 0.42);
   outline: none;
   -webkit-appearance: none;
 }
@@ -108,7 +110,8 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #667eea;
+  background: #cddcff;
+  border: 2px solid #3e64e9;
   cursor: pointer;
 }
 
@@ -116,9 +119,9 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #667eea;
+  background: #cddcff;
   cursor: pointer;
-  border: none;
+  border: 2px solid #3e64e9;
 }
 
 .distance-control input[type="range"]:disabled {
@@ -128,19 +131,20 @@
 
 .filter-toggle-btn {
   padding: 0.75rem 1.5rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
+  background: linear-gradient(125deg, #446cf1 0%, #5d74f8 62%, #7083fd 100%);
+  color: #fff;
+  border: 1px solid rgba(204, 221, 255, 0.22);
+  border-radius: 10px;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
+  box-shadow: 0 8px 16px rgba(34, 60, 130, 0.36);
 }
 
 .filter-toggle-btn:hover:not(:disabled) {
-  background: #5568d3;
+  filter: brightness(1.04);
   transform: translateY(-1px);
 }
 
@@ -151,13 +155,14 @@
 
 /* Radar Container - Full Width Centered */
 .radar-container {
-  background: white;
-  padding: 2rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 600px;
+  background:
+    radial-gradient(100% 120% at 50% -12%, rgba(95, 129, 205, 0.1) 0%, transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 1.5rem;
+  border-bottom: 1px solid #e6ecf7;
+  display: grid;
+  place-items: center;
+  min-height: 640px;
   position: relative;
   overflow: hidden;
   width: 100%;
@@ -166,13 +171,14 @@
 .radar-canvas {
   display: block;
   cursor: pointer;
-  touch-action: none;
-  width: 700px;
-  height: 700px;
-  max-width: min(90vw, 700px);
-  max-height: min(90vw, 700px);
+  touch-action: pan-y;
+  position: static;
+  inset: auto;
+  width: min(680px, calc(100vw - 7rem));
+  height: min(680px, calc(100vw - 7rem));
   aspect-ratio: 1 / 1;
   object-fit: contain;
+  margin: 0 auto;
 }
 
 .vanish-message {
@@ -192,17 +198,17 @@
 
 .radar-loading {
   position: absolute;
-  bottom: 1.5rem;
+  top: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(102, 126, 234, 0.95);
-  border: 1px solid #667eea;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(153, 181, 236, 0.36);
   padding: 0.6rem 1.5rem;
-  border-radius: 8px;
+  border-radius: 12px;
   font-weight: 600;
   font-size: 0.85rem;
-  color: white;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  color: #3f68ec;
+  box-shadow: 0 8px 16px rgba(22, 43, 85, 0.16);
   z-index: 10;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -218,16 +224,16 @@
 
 .no-users-message {
   position: absolute;
-  bottom: 2rem;
+  bottom: 1.4rem;
   left: 50%;
   transform: translateX(-50%);
   background: white;
   border: 1px solid #e2e8f0;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
   color: #64748b;
   font-size: 0.9rem;
-  box-shadow: 0 4px 8px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 /* Nearby List */
@@ -241,9 +247,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f8fafd;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid #e6ecf7;
+  background: linear-gradient(180deg, #f7faff 0%, #eff4fd 100%);
 }
 
 .nearby-list-header h4 {
@@ -287,17 +293,17 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #edf2fb;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .nearby-row:hover {
-  background: #f8fafd;
+  background: #f5f9ff;
 }
 
 .nearby-row.focused {
-  background: #eff6ff;
+  background: #ebf2ff;
 }
 
 .nearby-main {
@@ -346,7 +352,7 @@
 .eye-focus-btn {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
   background: white;
   color: #64748b;
@@ -361,6 +367,7 @@
 .eye-focus-btn:hover {
   border-color: #667eea;
   color: #667eea;
+  box-shadow: 0 6px 12px rgba(80, 106, 180, 0.15);
 }
 
 .eye-focus-btn.active {
@@ -371,9 +378,9 @@
 
 /* Filter Panel */
 .radar-filter-panel {
-  background: white;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  background: #f8fbff;
+  padding: 1.2rem;
+  border-bottom: 1px solid #e6ecf7;
   animation: fadeIn 0.3s ease;
 }
 
@@ -414,7 +421,7 @@
 }
 
 .clear-filters-btn:hover {
-  background: #eff6ff;
+  background: #e9f1ff;
 }
 
 .filter-group {
@@ -432,8 +439,8 @@
 .filter-group select {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1px solid #d8e3f3;
+  border-radius: 10px;
   font-size: 1rem;
   background: white;
   color: #0f172a;
@@ -451,7 +458,7 @@
   padding: 0.75rem;
   background: #eff6ff;
   border: 1px solid #dbeafe;
-  border-radius: 8px;
+  border-radius: 10px;
   color: #667eea;
   font-weight: 600;
   text-align: center;
@@ -463,6 +470,7 @@
   .radar-controls {
     flex-direction: column;
     align-items: stretch;
+    padding: 0.95rem;
   }
 
   .visibility-toggle {
@@ -470,8 +478,13 @@
   }
 
   .radar-container {
-    padding: 1rem;
+    padding: 0.8rem;
     min-height: 400px;
+  }
+
+  .radar-canvas {
+    width: min(94vw, 520px);
+    height: min(94vw, 520px);
   }
 
   .nearby-list {

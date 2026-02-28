@@ -7,9 +7,9 @@ export class SessionService {
   /**
    * Create a new session
    */
-  static async createSession(userId: string, token: string): Promise<void> {
+  static async createSession(userId: string, token: string, ttlSeconds: number = SESSION_TTL): Promise<void> {
     const key = `${SESSION_PREFIX}${userId}`;
-    await redis.setex(key, SESSION_TTL, token);
+    await redis.setex(key, ttlSeconds, token);
   }
 
   /**
@@ -31,9 +31,9 @@ export class SessionService {
   /**
    * Refresh session TTL
    */
-  static async refreshSession(userId: string, token: string): Promise<void> {
+  static async refreshSession(userId: string, token: string, ttlSeconds: number = SESSION_TTL): Promise<void> {
     const key = `${SESSION_PREFIX}${userId}`;
-    await redis.setex(key, SESSION_TTL, token);
+    await redis.setex(key, ttlSeconds, token);
   }
 
   /**

@@ -94,7 +94,7 @@
 .chat-list-item {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 11px;
   border-radius: 12px;
@@ -118,9 +118,57 @@
 
 .chat-list-item-info h3 {
   margin: 0;
+}
+
+.chat-name-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 700;
-  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.chat-name-link:hover {
+  color: var(--color-primary);
+}
+
+.chat-avatar-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.chat-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
+}
+
+.chat-avatar-fallback {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #8b5cf6);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chat-list-item-info .profession {
@@ -167,6 +215,38 @@
 
 .chat-header-info {
   min-width: 0;
+}
+
+.chat-header-user {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-header-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+}
+
+.chat-header-avatar-fallback {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #8b5cf6);
+  color: #fff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chat-header-info h2 {
@@ -436,5 +516,18 @@
 
   .message {
     max-width: 90%;
+  }
+
+  .chat-avatar-btn,
+  .chat-avatar,
+  .chat-avatar-fallback {
+    width: 40px;
+    height: 40px;
+  }
+
+  .chat-header-avatar,
+  .chat-header-avatar-fallback {
+    width: 34px;
+    height: 34px;
   }
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createProfile,
+  checkUsernameAvailability,
   getProfile,
   updateProfile,
   deleteProfile
@@ -11,6 +12,7 @@ import { authenticate } from '../middleware/auth';
 const router = Router();
 
 // All profile routes require authentication
+router.get('/username/check', authenticate, checkUsernameAvailability);
 router.post('/', authenticate, createProfile);
 router.get('/:userId', authenticate, getProfile);
 router.put('/:userId', authenticate, updateProfile);

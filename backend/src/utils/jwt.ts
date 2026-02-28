@@ -11,8 +11,8 @@ export interface TokenPayload {
   email: string;
 }
 
-export const generateToken = (payload: TokenPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
+export const generateToken = (payload: TokenPayload, expiresIn?: string): string => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: (expiresIn || JWT_EXPIRES_IN) as any });
 };
 
 export const verifyToken = (token: string): TokenPayload => {

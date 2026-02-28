@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './GigDetailPage.css';
 
 interface Gig {
@@ -52,7 +53,7 @@ const GigDetailPage = () => {
   const [hasApplied, setHasApplied] = useState(false);
   const [myApplication, setMyApplication] = useState<Application | null>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_URL = getApiBaseUrl();
   const currentUserId = localStorage.getItem('userId');
 
   useEffect(() => {

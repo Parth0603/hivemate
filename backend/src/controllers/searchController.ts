@@ -1,10 +1,15 @@
 import { Request, Response } from 'express';
 import Profile from '../models/Profile';
 import Gig from '../models/Gig';
+import User from '../models/User';
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const searchProfiles = async (req: Request, res: Response) => {
   try {
     const {
+      query,
+      username,
       skills,
       profession,
       niche,
@@ -16,19 +21,44 @@ export const searchProfiles = async (req: Request, res: Response) => {
     } = req.body;
 
     // Build filter
-    const filter: any = {};
+    const baseFilter: any = {};
 
     if (skills && Array.isArray(skills) && skills.length > 0) {
-      filter.skills = { $in: skills };
+      baseFilter.skills = { $in: skills };
     }
 
     if (profession) {
-      filter.profession = { $regex: profession, $options: 'i' };
+      baseFilter.profession = { $regex: profession, $options: 'i' };
     }
 
     if (niche) {
       // Search in optimized keywords
-      filter.optimizedKeywords = { $in: [niche] };
+      baseFilter.optimizedKeywords = { $in: [niche] };
+    }
+
+    const searchQuery = String(query || '').trim();
+    const usernameQuery = String(username || '').trim().toLowerCase();
+    const profileTextFilter =
+      searchQuery.length > 0
+        ? {
+            $or: [
+              { name: { $regex: escapeRegex(searchQuery), $options: 'i' } },
+              { profession: { $regex: escapeRegex(searchQuery), $options: 'i' } },
+              { bio: { $regex: escapeRegex(searchQuery), $options: 'i' } }
+            ]
+          }
+        : {};
+
+    let usernameMatchedUserIds: string[] = [];
+    if (usernameQuery) {
+      const matchedUsers = await User.find({
+        username: { $regex: `^${escapeRegex(usernameQuery)}`, $options: 'i' }
+      })
+        .select('_id')
+        .limit(50)
+        .lean();
+
+      usernameMatchedUserIds = matchedUsers.map((user: any) => user._id.toString());
     }
 
     // Pagination
@@ -38,6 +68,7 @@ export const searchProfiles = async (req: Request, res: Response) => {
 
     let profiles;
     let total;
+    const branchFilters: any[] = [];
 
     // If distance filter is provided, use geospatial query
     if (distance && lat && lng) {
@@ -59,27 +90,45 @@ export const searchProfiles = async (req: Request, res: Response) => {
 
       const nearbyUserIds = nearbyLocations.map(loc => loc.userId);
 
-      // Add user ID filter
-      filter.userId = { $in: nearbyUserIds };
-
-      [profiles, total] = await Promise.all([
-        Profile.find(filter)
-          .select('-__v')
-          .skip(skip)
-          .limit(limitNum)
-          .lean(),
-        Profile.countDocuments(filter)
-      ]);
+      branchFilters.push({
+        ...baseFilter,
+        ...profileTextFilter,
+        userId: { $in: nearbyUserIds }
+      });
     } else {
-      // Regular search without distance filter
-      [profiles, total] = await Promise.all([
-        Profile.find(filter)
-          .select('-__v')
-          .skip(skip)
-          .limit(limitNum)
-          .lean(),
-        Profile.countDocuments(filter)
-      ]);
+      branchFilters.push({
+        ...baseFilter,
+        ...profileTextFilter
+      });
+    }
+
+    // Username search should ignore distance constraints and still return results.
+    if (usernameMatchedUserIds.length > 0) {
+      branchFilters.push({
+        ...baseFilter,
+        userId: { $in: usernameMatchedUserIds }
+      });
+    }
+
+    const finalFilter = branchFilters.length > 1 ? { $or: branchFilters } : branchFilters[0] || {};
+    [profiles, total] = await Promise.all([
+      Profile.find(finalFilter)
+        .select('-__v')
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Profile.countDocuments(finalFilter)
+    ]);
+
+    // Promote exact username matches to top
+    if (usernameQuery && profiles.length > 0) {
+      profiles = profiles.sort((a: any, b: any) => {
+        const aUsername = String(a.username || '').toLowerCase();
+        const bUsername = String(b.username || '').toLowerCase();
+        const aExact = aUsername === usernameQuery ? 2 : aUsername.startsWith(usernameQuery) ? 1 : 0;
+        const bExact = bUsername === usernameQuery ? 2 : bUsername.startsWith(usernameQuery) ? 1 : 0;
+        return bExact - aExact;
+      });
     }
 
     // Rank by AI-optimized keywords if niche is provided

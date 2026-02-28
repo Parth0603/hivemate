@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './SubscriptionPage.css';
 
 interface Subscription {
@@ -10,15 +11,61 @@ interface Subscription {
   endDate?: string;
 }
 
+const premiumFeatures = [
+  {
+    title: 'Video Calls Unlocked',
+    description: 'Start video calls in your conversations with premium access.'
+  },
+  {
+    title: 'Shared Benefit',
+    description: 'Connected users in your conversation can also join video calls.'
+  },
+  {
+    title: 'Stronger Trust Building',
+    description: 'Voice and video improve collaboration quality and decision speed.'
+  },
+  {
+    title: 'Everything In Free',
+    description: 'Keep radar, search, encrypted chat, voice calls, and gig features.'
+  }
+];
+
+const freeFeatures = [
+  'Radar-based nearby discovery',
+  'Encrypted direct messaging',
+  'Voice call support',
+  'Gig posting and collaboration',
+  'Advanced profile search',
+  'Unlimited connections'
+];
+
+const faqItems = [
+  {
+    q: 'How does shared benefit work?',
+    a: 'If you are premium, video calling is enabled for your active conversations.'
+  },
+  {
+    q: 'Can I cancel anytime?',
+    a: 'Yes. You can cancel anytime. Premium remains active until the current period ends.'
+  },
+  {
+    q: 'What happens after cancellation?',
+    a: 'Video calls stop unless the other person has active premium. All free features remain.'
+  }
+];
+
 const SubscriptionPage = () => {
   const navigate = useNavigate();
+  const API_URL = getApiBaseUrl();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     fetchSubscription();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSubscription = async () => {
@@ -29,9 +76,9 @@ const SubscriptionPage = () => {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/subscriptions/current`, {
+      const response = await fetch(`${API_URL}/api/subscriptions/current`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         }
       });
 
@@ -52,6 +99,7 @@ const SubscriptionPage = () => {
     try {
       setProcessing(true);
       setError(null);
+      setNotice('');
 
       const token = localStorage.getItem('token');
       if (!token) {
@@ -59,10 +107,10 @@ const SubscriptionPage = () => {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/subscriptions/create`, {
+      const response = await fetch(`${API_URL}/api/subscriptions/create`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -70,7 +118,7 @@ const SubscriptionPage = () => {
       if (response.ok) {
         const data = await response.json();
         setSubscription(data.subscription);
-        alert('Subscription activated successfully! Video calls are now unlocked for all your conversations.');
+        setNotice('Premium activated. Video calls are now unlocked.');
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error?.message || 'Failed to create subscription');
@@ -83,13 +131,14 @@ const SubscriptionPage = () => {
   };
 
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? Video call access will be removed unless your conversation partner has an active subscription.')) {
+    if (!window.confirm('Cancel premium subscription?')) {
       return;
     }
 
     try {
       setProcessing(true);
       setError(null);
+      setNotice('');
 
       const token = localStorage.getItem('token');
       if (!token) {
@@ -97,10 +146,10 @@ const SubscriptionPage = () => {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/subscriptions/cancel`, {
+      const response = await fetch(`${API_URL}/api/subscriptions/cancel`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -108,7 +157,7 @@ const SubscriptionPage = () => {
       if (response.ok) {
         const data = await response.json();
         setSubscription(data.subscription);
-        alert('Subscription cancelled successfully.');
+        setNotice('Premium cancelled successfully.');
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error?.message || 'Failed to cancel subscription');
@@ -120,109 +169,84 @@ const SubscriptionPage = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
-  };
 
   if (loading) {
     return (
       <div className="subscription-page">
-        <div className="loading">Loading subscription details...</div>
+        <div className="subscription-loading">Loading subscription details...</div>
       </div>
     );
   }
 
   const isPremium = subscription?.plan === 'premium' && subscription?.status === 'active';
+  const planName = subscription?.plan === 'premium' ? 'Premium' : 'Free';
 
   return (
     <div className="subscription-page">
-      <div className="subscription-header">
-        <button className="back-button" onClick={() => navigate('/home')}>
-          ← Back
-        </button>
-        <h1>Subscription</h1>
-      </div>
+      <div className="subscription-shell">
+        <header className="subscription-hero">
+          <button className="subscription-back-btn" onClick={() => navigate('/home')}>
+            Back
+          </button>
+          <h1>Subscription</h1>
+          <p>Unlock video-first networking while keeping your existing workflow unchanged.</p>
+        </header>
 
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
+        {error && <div className="subscription-alert subscription-alert-error">{error}</div>}
+        {notice && <div className="subscription-alert subscription-alert-success">{notice}</div>}
 
-      <div className="subscription-content">
-        {/* Current Status */}
-        <div className="current-status">
-          <h2>Current Plan</h2>
-          <div className={`status-card ${subscription?.plan}`}>
-            <div className="plan-badge">
-              {subscription?.plan === 'premium' ? '⭐ Premium' : '🆓 Free'}
+        <main className="subscription-content">
+          <section className="subscription-card subscription-status-card">
+            <div className="subscription-status-top">
+              <h2>Current Plan</h2>
+              <span className={`subscription-pill ${subscription?.status || 'active'}`}>
+                {subscription?.status || 'active'}
+              </span>
             </div>
-            <div className="status-info">
-              <p className="status-label">Status: <span className={`status-value ${subscription?.status}`}>{subscription?.status}</span></p>
-              {subscription?.startDate && (
-                <p className="status-label">Member since: <span className="status-value">{formatDate(subscription.startDate)}</span></p>
-              )}
-              {subscription?.endDate && isPremium && (
-                <p className="status-label">Renews on: <span className="status-value">{formatDate(subscription.endDate)}</span></p>
-              )}
+            <h3 className="subscription-plan-name">{planName}</h3>
+            <div className="subscription-meta-grid">
+              <div>
+                <span>Member Since</span>
+                <strong>{subscription?.startDate ? formatDate(subscription.startDate) : 'Not available'}</strong>
+              </div>
+              <div>
+                <span>Next Renewal</span>
+                <strong>{subscription?.endDate ? formatDate(subscription.endDate) : 'Not scheduled'}</strong>
+              </div>
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* Premium Plan Details */}
-        <div className="plan-details">
-          <h2>Premium Plan</h2>
-          <div className="plan-card">
-            <div className="plan-header">
-              <h3>SocialHive Premium</h3>
-              <div className="plan-price">
-                <span className="price">$9.99</span>
-                <span className="period">/month</span>
+          <section className="subscription-card subscription-premium-card">
+            <div className="subscription-premium-head">
+              <div>
+                <h2>HiveMate Premium</h2>
+                <p>One plan, clear value, zero clutter.</p>
+              </div>
+              <div className="subscription-price">
+                <strong>$9.99</strong>
+                <span>/ month</span>
               </div>
             </div>
 
-            <div className="plan-features">
-              <h4>Premium Features:</h4>
-              <ul>
-                <li>
-                  <span className="feature-icon">📹</span>
-                  <div className="feature-text">
-                    <strong>Video Calling</strong>
-                    <p>Unlock video calls for all your conversations. When you subscribe, both you and your conversation partners can use video calls.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="feature-icon">🎯</span>
-                  <div className="feature-text">
-                    <strong>Enhanced Networking</strong>
-                    <p>Build stronger professional relationships with face-to-face video communication.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="feature-icon">🤝</span>
-                  <div className="feature-text">
-                    <strong>Shared Benefits</strong>
-                    <p>Your subscription unlocks video calls for both you and your friends - they benefit too!</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="feature-icon">💬</span>
-                  <div className="feature-text">
-                    <strong>All Free Features</strong>
-                    <p>Keep all existing features: radar discovery, encrypted chat, voice calls, and gig collaboration.</p>
-                  </div>
-                </li>
-              </ul>
+            <div className="subscription-feature-grid">
+              {premiumFeatures.map((feature) => (
+                <article key={feature.title} className="subscription-feature-item">
+                  <h3>{feature.title}</h3>
+                  <p>{feature.description}</p>
+                </article>
+              ))}
             </div>
 
-            <div className="plan-actions">
+            <div className="subscription-actions">
               {!isPremium ? (
                 <button
-                  className="subscribe-button"
+                  className="subscription-btn subscription-btn-primary"
                   onClick={handleSubscribe}
                   disabled={processing}
                 >
@@ -230,48 +254,39 @@ const SubscriptionPage = () => {
                 </button>
               ) : (
                 <button
-                  className="cancel-button"
+                  className="subscription-btn subscription-btn-danger"
                   onClick={handleCancel}
                   disabled={processing}
                 >
-                  {processing ? 'Processing...' : 'Cancel Subscription'}
+                  {processing ? 'Processing...' : 'Cancel Premium'}
                 </button>
               )}
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* Free Plan Features */}
-        {!isPremium && (
-          <div className="free-features">
-            <h3>Free Plan Includes:</h3>
-            <ul>
-              <li>📡 Radar-based professional discovery</li>
-              <li>🔒 End-to-end encrypted messaging</li>
-              <li>📞 Voice calls (after 2 interactions)</li>
-              <li>💼 Gig posting and collaboration</li>
-              <li>🔍 Advanced search and filtering</li>
-              <li>👥 Unlimited connections</li>
-            </ul>
-          </div>
-        )}
+          {!isPremium && (
+            <section className="subscription-card">
+              <h2>Included In Free Plan</h2>
+              <ul className="subscription-free-list">
+                {freeFeatures.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-        {/* FAQ */}
-        <div className="subscription-faq">
-          <h3>Frequently Asked Questions</h3>
-          <div className="faq-item">
-            <h4>How does the shared benefit work?</h4>
-            <p>When you subscribe to Premium, video calling is unlocked for all your conversations. This means both you and your friends can initiate video calls with each other, even if they don't have a Premium subscription.</p>
-          </div>
-          <div className="faq-item">
-            <h4>Can I cancel anytime?</h4>
-            <p>Yes! You can cancel your subscription at any time. Your Premium features will remain active until the end of your current billing period.</p>
-          </div>
-          <div className="faq-item">
-            <h4>What happens when I cancel?</h4>
-            <p>If you cancel, video calling will be disabled for your conversations unless your conversation partner has an active Premium subscription. All other features remain available.</p>
-          </div>
-        </div>
+          <section className="subscription-card">
+            <h2>FAQ</h2>
+            <div className="subscription-faq-list">
+              {faqItems.map((item) => (
+                <article key={item.q} className="subscription-faq-item">
+                  <h3>{item.q}</h3>
+                  <p>{item.a}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );

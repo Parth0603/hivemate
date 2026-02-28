@@ -3,8 +3,12 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IProfile extends Document {
   userId: mongoose.Types.ObjectId;
   name: string;
+  username: string;
   age: number;
   gender: 'male' | 'female' | 'other';
+  religion: string;
+  religionOther?: string;
+  phone: string;
   place: string;
   skills: string[];
   profession: string;
@@ -33,6 +37,14 @@ const ProfileSchema: Schema = new Schema({
     required: true,
     trim: true
   },
+  username: {
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true,
+    unique: true,
+    index: true
+  },
   age: {
     type: Number,
     required: true,
@@ -43,6 +55,21 @@ const ProfileSchema: Schema = new Schema({
     type: String,
     required: true,
     enum: ['male', 'female', 'other']
+  },
+  religion: {
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true
+  },
+  religionOther: {
+    type: String,
+    trim: true
+  },
+  phone: {
+    type: String,
+    required: true,
+    trim: true
   },
   place: {
     type: String,

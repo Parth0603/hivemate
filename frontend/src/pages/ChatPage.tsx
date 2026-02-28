@@ -13,6 +13,7 @@ interface ChatRoom {
     userId: string;
     name: string;
     profession: string;
+    photo?: string;
   }>;
   lastMessage: {
     encryptedContent: string;
@@ -70,10 +71,12 @@ const ChatPage = () => {
   const [chatSearch, setChatSearch] = useState('');
   const [isMobileView, setIsMobileView] = useState(false);
   const [showSidebarOnMobile, setShowSidebarOnMobile] = useState(true);
+  const [participantPhotos, setParticipantPhotos] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Socket | null>(null);
   const selectedChatRoomRef = useRef<ChatRoom | null>(null);
   const typingStopTimeoutRef = useRef<number | null>(null);
+  const photoCacheRef = useRef<Record<string, string>>({});
 
   const API_URL = getApiBaseUrl();
   const WS_URL = getWsBaseUrl();
@@ -82,6 +85,19 @@ const ChatPage = () => {
 
   const getOtherParticipant = (room: ChatRoom) =>
     room.participants.find((p) => String(p.userId) !== currentUserIdStr);
+
+  const getParticipantPhoto = (participant?: { userId: string; photo?: string }) => {
+    if (!participant) return '';
+    if (participant.photo) return participant.photo;
+    return participantPhotos[String(participant.userId)] || '';
+  };
+
+  const getInitial = (name?: string) => (name?.charAt(0).toUpperCase() || 'U');
+
+  const openUserProfile = (userId: string) => {
+    if (!userId) return;
+    navigate(`/profile/${userId}`);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -292,11 +308,13 @@ const ChatPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setChatRooms(data.chats || []);
+        const chats: ChatRoom[] = data.chats || [];
+        setChatRooms(chats);
+        await hydrateParticipantPhotos(chats);
         
         // If friendshipId is provided, select that chat
-        if (friendshipId && data.chats.length > 0) {
-          const chat = data.chats.find((c: ChatRoom) => 
+        if (friendshipId && chats.length > 0) {
+          const chat = chats.find((c: ChatRoom) =>
             c.participants.some(p => String(p.userId) === String(friendshipId))
           );
           if (chat) {
@@ -309,6 +327,47 @@ const ChatPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const hydrateParticipantPhotos = async (rooms: ChatRoom[]) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const participantIds = Array.from(
+      new Set(
+        rooms
+          .flatMap((room) => room.participants)
+          .map((p) => String(p.userId))
+          .filter((id) => id && id !== currentUserIdStr)
+      )
+    );
+
+    const missingIds = participantIds.filter((id) => !(id in photoCacheRef.current));
+    if (missingIds.length === 0) {
+      setParticipantPhotos({ ...photoCacheRef.current });
+      return;
+    }
+
+    await Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const response = await fetch(`${API_URL}/api/profiles/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!response.ok) {
+            photoCacheRef.current[id] = '';
+            return;
+          }
+
+          const data = await response.json();
+          photoCacheRef.current[id] = data?.profile?.photos?.[0] || '';
+        } catch {
+          photoCacheRef.current[id] = '';
+        }
+      })
+    );
+
+    setParticipantPhotos({ ...photoCacheRef.current });
   };
 
   const loadMessages = async (chatRoomId: string) => {
@@ -577,6 +636,10 @@ const ChatPage = () => {
     return haystack.includes(chatSearch.toLowerCase());
   });
 
+  const selectedOtherParticipant = selectedChatRoom
+    ? selectedChatRoom.participants.find((p) => String(p.userId) !== currentUserIdStr)
+    : null;
+
   const handleMessageContextMenu = (
     event: React.MouseEvent,
     message: Message,
@@ -679,8 +742,38 @@ const ChatPage = () => {
                       if (isMobileView) setShowSidebarOnMobile(false);
                     }}
                   >
+                    <button
+                      type="button"
+                      className="chat-avatar-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (otherParticipant?.userId) openUserProfile(String(otherParticipant.userId));
+                      }}
+                      aria-label={`Open ${otherParticipant?.name || 'user'} profile`}
+                    >
+                      {getParticipantPhoto(otherParticipant) ? (
+                        <img
+                          src={getParticipantPhoto(otherParticipant)}
+                          alt={otherParticipant?.name || 'User'}
+                          className="chat-avatar"
+                        />
+                      ) : (
+                        <span className="chat-avatar-fallback">{getInitial(otherParticipant?.name)}</span>
+                      )}
+                    </button>
                     <div className="chat-list-item-info">
-                      <h3>{otherParticipant?.name || 'Unknown'}</h3>
+                      <h3>
+                        <button
+                          type="button"
+                          className="chat-name-link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (otherParticipant?.userId) openUserProfile(String(otherParticipant.userId));
+                          }}
+                        >
+                          {otherParticipant?.name || 'Unknown'}
+                        </button>
+                      </h3>
                       <p className="profession">{otherParticipant?.profession}</p>
                       {room.lastMessage && (
                         <p className="last-message">
@@ -718,12 +811,28 @@ const ChatPage = () => {
                   </button>
                 )}
                 <div className="chat-header-info">
-                  <h2>
-                    {selectedChatRoom.participants
-                      .filter(p => String(p.userId) !== currentUserIdStr)
-                      .map(p => p.name)
-                      .join(', ')}
-                  </h2>
+                  <button
+                    type="button"
+                    className="chat-header-user"
+                    onClick={() => selectedOtherParticipant?.userId && openUserProfile(String(selectedOtherParticipant.userId))}
+                    aria-label={`Open ${selectedOtherParticipant?.name || 'user'} profile`}
+                  >
+                    {getParticipantPhoto(selectedOtherParticipant || undefined) ? (
+                      <img
+                        src={getParticipantPhoto(selectedOtherParticipant || undefined)}
+                        alt={selectedOtherParticipant?.name || 'User'}
+                        className="chat-header-avatar"
+                      />
+                    ) : (
+                      <span className="chat-header-avatar-fallback">{getInitial(selectedOtherParticipant?.name)}</span>
+                    )}
+                    <h2>
+                      {selectedChatRoom.participants
+                        .filter(p => String(p.userId) !== currentUserIdStr)
+                        .map(p => p.name)
+                        .join(', ')}
+                    </h2>
+                  </button>
                   <div className="encryption-indicator">
                     <span className="lock-icon">🔒</span>
                     <span>End-to-end encrypted</span>

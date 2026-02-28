@@ -64,6 +64,9 @@ const RadarView = () => {
   const locationWatchIdRef = useRef<number | null>(null);
   const userLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const hasBootstrappedLocationSyncRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const touchMovedRef = useRef(false);
+  const lastTouchHandledAtRef = useRef(0);
 
   const API_URL = getApiBaseUrl();
   const WS_URL = getWsBaseUrl();
@@ -642,6 +645,11 @@ const RadarView = () => {
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Ignore synthetic click that follows a handled touch tap on mobile.
+    if (Date.now() - lastTouchHandledAtRef.current < 700) {
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -690,6 +698,10 @@ const RadarView = () => {
   };
 
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === 'touch') {
+      return;
+    }
+
     const coords = getCanvasCoordinates(e.clientX, e.clientY);
     if (!coords) return;
 
@@ -702,6 +714,75 @@ const RadarView = () => {
         photo: tappedUser.photo
       });
     }
+  };
+
+  const handleCanvasTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length !== 1) {
+      touchStartRef.current = null;
+      touchMovedRef.current = false;
+      return;
+    }
+
+    const touch = e.touches[0];
+    const coords = getCanvasCoordinates(touch.clientX, touch.clientY);
+    if (!coords) return;
+
+    touchStartRef.current = {
+      x: coords.x,
+      y: coords.y,
+      time: Date.now()
+    };
+    touchMovedRef.current = false;
+  };
+
+  const handleCanvasTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+
+    const touch = e.touches[0];
+    const coords = getCanvasCoordinates(touch.clientX, touch.clientY);
+    if (!coords) return;
+
+    const dx = coords.x - touchStartRef.current.x;
+    const dy = coords.y - touchStartRef.current.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 12) {
+      touchMovedRef.current = true;
+    }
+  };
+
+  const handleCanvasTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!touchStartRef.current || touchMovedRef.current) {
+      touchStartRef.current = null;
+      touchMovedRef.current = false;
+      return;
+    }
+
+    const elapsed = Date.now() - touchStartRef.current.time;
+    if (elapsed > 450) {
+      touchStartRef.current = null;
+      touchMovedRef.current = false;
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+
+    const coords = getCanvasCoordinates(touch.clientX, touch.clientY);
+    if (!coords) return;
+
+    const hitRadius = 40;
+    const tappedUser = findUserAtPoint(coords.x, coords.y, hitRadius);
+    if (tappedUser) {
+      e.preventDefault();
+      lastTouchHandledAtRef.current = Date.now();
+      setSelectedUser({
+        userId: tappedUser.userId,
+        name: tappedUser.name,
+        photo: tappedUser.photo
+      });
+    }
+
+    touchStartRef.current = null;
+    touchMovedRef.current = false;
   };
 
   const handleCanvasMouseLeave = () => {
@@ -821,6 +902,9 @@ const RadarView = () => {
                 onClick={handleCanvasClick}
                 onMouseMove={handleCanvasMouseMove}
                 onPointerDown={handleCanvasPointerDown}
+                onTouchStart={handleCanvasTouchStart}
+                onTouchMove={handleCanvasTouchMove}
+                onTouchEnd={handleCanvasTouchEnd}
                 onMouseLeave={handleCanvasMouseLeave}
                 className="radar-canvas"
               />

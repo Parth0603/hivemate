@@ -1,21 +1,54 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrl } from '../utils/runtimeConfig';
+import { INDIA_CITY_OPTIONS } from '../constants/indiaCities';
 import './CreateProfilePage.css';
 
 const API_URL = getApiBaseUrl();
 
 const MAX_IMAGE_DIMENSION = 1280;
 const MAX_BASE64_BYTES = 4.5 * 1024 * 1024;
+const RELIGION_OPTIONS = [
+  'hindu',
+  'muslim',
+  'christian',
+  'sikh',
+  'buddhist',
+  'jain',
+  'jewish',
+  'atheist',
+  'agnostic',
+  'other'
+];
+const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+
+const normalizeUsername = (value: string) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const sanitizeIndianPhone = (value: string) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  const withoutCountryCode = digits.startsWith('91') ? digits.slice(2) : digits;
+  const local = withoutCountryCode.slice(0, 10);
+  return `+91 ${local}`;
+};
 
 const CreateProfilePage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '',
-    age: '',
+    username: '',
+    dob: '',
     gender: '',
+    religion: '',
+    religionOther: '',
+    phone: '+91 ',
     place: '',
     profession: '',
     skills: '',
@@ -23,29 +56,134 @@ const CreateProfilePage = () => {
     photo: '',
     websiteUrl: '',
     college: '',
-    company: ''
+    company: '',
+    achievements: ''
   });
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [locationQuery, setLocationQuery] = useState('');
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [selectedPhotoName, setSelectedPhotoName] = useState('');
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameMessage, setUsernameMessage] = useState('');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+
+  const filteredLocations = INDIA_CITY_OPTIONS.filter((option) =>
+    option.toLowerCase().includes((locationQuery || formData.place).toLowerCase())
+  ).slice(0, 12);
+
+  useEffect(() => {
+    const normalized = normalizeUsername(formData.username);
+
+    if (!normalized) {
+      setUsernameAvailable(null);
+      setUsernameMessage('');
+      setUsernameSuggestions([]);
+      setUsernameChecking(false);
+      return;
+    }
+
+    if (!USERNAME_REGEX.test(normalized)) {
+      setUsernameAvailable(false);
+      setUsernameMessage('Use 3-20 chars: a-z, 0-9, underscore');
+      setUsernameSuggestions([]);
+      setUsernameChecking(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        setUsernameChecking(true);
+        const response = await axios.get(`${API_URL}/api/profiles/username/check`, {
+          params: { username: normalized },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUsernameAvailable(Boolean(response.data?.available));
+        setUsernameSuggestions(response.data?.suggestions || []);
+        setUsernameMessage(
+          response.data?.available ? 'Username is available' : 'Username is already taken'
+        );
+      } catch {
+        setUsernameAvailable(false);
+        setUsernameMessage('Unable to validate username right now');
+        setUsernameSuggestions([]);
+      } finally {
+        setUsernameChecking(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [formData.username]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (name === 'phone') {
+      setFormData((prev) => ({
+        ...prev,
+        phone: sanitizeIndianPhone(value)
+      }));
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
     setError('');
+    setInfo('');
+  };
+
+  const calculateAgeFromDob = (dob: string): number => {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
   };
 
   const handleNext = () => {
     // Validate current step
     if (step === 1) {
-      if (!formData.name || !formData.age || !formData.gender || !formData.place) {
+      if (!formData.name || !formData.username || !formData.dob || !formData.gender || !formData.religion || !formData.phone || !formData.place) {
         setError('Please fill in all required fields');
         return;
       }
-      if (parseInt(formData.age) < 18 || parseInt(formData.age) > 120) {
-        setError('Age must be between 18 and 120');
+      if (!USERNAME_REGEX.test(normalizeUsername(formData.username))) {
+        setError('Please enter a valid username');
+        return;
+      }
+      if (usernameChecking) {
+        setError('Please wait while username availability is checked');
+        return;
+      }
+      if (usernameAvailable === false) {
+        setError('Please choose an available username');
+        return;
+      }
+      if (usernameAvailable !== true) {
+        setError('Please wait for username availability and select an available username');
+        return;
+      }
+      if (formData.religion === 'other' && !formData.religionOther.trim()) {
+        setError('Please specify religion when selecting Other');
+        return;
+      }
+      const phoneDigits = formData.phone.replace(/\D/g, '');
+      if (phoneDigits.length !== 12 || !phoneDigits.startsWith('91')) {
+        setError('Please enter a valid Indian phone number');
+        return;
+      }
+      const age = calculateAgeFromDob(formData.dob);
+      if (Number.isNaN(age) || age < 18 || age > 120) {
+        setError('You must be between 18 and 120 years old');
         return;
       }
     } else if (step === 2) {
@@ -77,11 +215,16 @@ const CreateProfilePage = () => {
 
     try {
       const token = localStorage.getItem('token');
+      const calculatedAge = calculateAgeFromDob(formData.dob);
 
       const profileData = {
         name: formData.name,
-        age: parseInt(formData.age),
+        username: normalizeUsername(formData.username),
+        age: calculatedAge,
         gender: formData.gender,
+        religion: formData.religion,
+        religionOther: formData.religion === 'other' ? formData.religionOther : undefined,
+        phone: sanitizeIndianPhone(formData.phone),
         place: formData.place,
         profession: formData.profession,
         skills: formData.skills.split(',').map(s => s.trim()),
@@ -90,7 +233,10 @@ const CreateProfilePage = () => {
         photos: [formData.photo],
         websiteUrl: formData.websiteUrl || undefined,
         college: formData.college || undefined,
-        company: formData.company || undefined
+        company: formData.company || undefined,
+        achievements: formData.achievements
+          ? formData.achievements.split(',').map((a) => a.trim()).filter(Boolean)
+          : undefined
       };
 
       await axios.post(`${API_URL}/api/profiles`, profileData, {
@@ -109,6 +255,7 @@ const CreateProfilePage = () => {
   const handlePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSelectedPhotoName(file.name);
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
@@ -133,6 +280,7 @@ const CreateProfilePage = () => {
           return;
         }
         setFormData((prev) => ({ ...prev, photo: optimizedBase64 }));
+        setInfo('Photo processed successfully');
       })
       .catch(() => {
         setError('Failed to process selected image. Please try another image.');
@@ -185,17 +333,33 @@ const CreateProfilePage = () => {
   return (
     <div className="create-profile-page">
       <div className="profile-container">
-        <h1>Create Your Profile</h1>
-        <div className="progress-bar">
-          <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>1</div>
-          <div className={`progress-line ${step >= 2 ? 'active' : ''}`}></div>
-          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>2</div>
-          <div className={`progress-line ${step >= 3 ? 'active' : ''}`}></div>
-          <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>3</div>
+        <div className="profile-header">
+          <div className="profile-logo">
+            <div className="profile-logo-ring"></div>
+            <div className="profile-logo-pulse"></div>
+          </div>
+          <h1>Create Your Profile</h1>
+          <p>Build your public identity for meaningful networking.</p>
+        </div>
+
+        <div className="progress-shell">
+          <div className="progress-bar">
+            <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>1</div>
+            <div className={`progress-line ${step >= 2 ? 'active' : ''}`}></div>
+            <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>2</div>
+            <div className={`progress-line ${step >= 3 ? 'active' : ''}`}></div>
+            <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>3</div>
+          </div>
+          <div className="progress-labels">
+            <span className={step === 1 ? 'active' : ''}>Basics</span>
+            <span className={step === 2 ? 'active' : ''}>Professional</span>
+            <span className={step === 3 ? 'active' : ''}>Profile</span>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="profile-form">
           {error && <div className="error-message">{error}</div>}
+          {info && <div className="info-message">{info}</div>}
 
           {step === 1 && (
             <div className="form-step">
@@ -215,16 +379,57 @@ const CreateProfilePage = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="age">Age *</label>
+                <label htmlFor="username">Username *</label>
+                <div className="username-input-wrap">
+                  <span className="username-prefix">@</span>
+                  <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    value={formData.username}
+                    onChange={(e) => {
+                      const normalized = normalizeUsername(e.target.value.replace(/^@+/, ''));
+                      setFormData((prev) => ({ ...prev, username: normalized }));
+                      setError('');
+                      setInfo('');
+                    }}
+                    placeholder="john_doe"
+                    required
+                  />
+                </div>
+                <div className="username-status-row">
+                  {usernameChecking && <span className="username-checking">Checking availability...</span>}
+                  {!usernameChecking && usernameMessage && (
+                    <span className={usernameAvailable ? 'username-available' : 'username-unavailable'}>
+                      {usernameAvailable ? '✓ ' : '✕ '}
+                      {usernameMessage}
+                    </span>
+                  )}
+                </div>
+                {usernameSuggestions.length > 0 && (
+                  <div className="username-suggestions">
+                    {usernameSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="username-suggestion-pill"
+                        onClick={() => setFormData((prev) => ({ ...prev, username: suggestion }))}
+                      >
+                        @{suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="dob">Date of Birth *</label>
                 <input
-                  type="number"
-                  id="age"
-                  name="age"
-                  value={formData.age}
+                  type="date"
+                  id="dob"
+                  name="dob"
+                  value={formData.dob}
                   onChange={handleChange}
-                  placeholder="25"
-                  min="18"
-                  max="120"
                   required
                 />
               </div>
@@ -252,10 +457,81 @@ const CreateProfilePage = () => {
                   id="place"
                   name="place"
                   value={formData.place}
-                  onChange={handleChange}
-                  placeholder="San Francisco, CA"
+                  onChange={(e) => {
+                    setLocationQuery(e.target.value);
+                    setShowLocationSuggestions(true);
+                    handleChange(e);
+                  }}
+                  onFocus={() => setShowLocationSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 120)}
+                  placeholder="City"
                   required
                 />
+                {showLocationSuggestions && filteredLocations.length > 0 && (
+                  <div className="location-suggestions" role="listbox">
+                    {filteredLocations.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        className="location-suggestion-item"
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, place: option }));
+                          setLocationQuery(option);
+                          setShowLocationSuggestions(false);
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="religion">Religion *</label>
+                <select
+                  id="religion"
+                  name="religion"
+                  value={formData.religion}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select religion</option>
+                  {RELIGION_OPTIONS.map((religion) => (
+                    <option key={religion} value={religion}>
+                      {religion.charAt(0).toUpperCase() + religion.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {formData.religion === 'other' && (
+                <div className="form-group">
+                  <label htmlFor="religionOther">Specify Religion *</label>
+                  <input
+                    type="text"
+                    id="religionOther"
+                    name="religionOther"
+                    value={formData.religionOther}
+                    onChange={handleChange}
+                    placeholder="Type your religion"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="form-group">
+                <label htmlFor="phone">Phone Number *</label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="+91 9876543210"
+                  required
+                />
+                
               </div>
 
               <button type="button" onClick={handleNext} className="next-button">
@@ -291,6 +567,18 @@ const CreateProfilePage = () => {
                   onChange={handleChange}
                   placeholder="JavaScript, React, Node.js"
                   required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="achievements">Achievements (optional)</label>
+                <input
+                  type="text"
+                  id="achievements"
+                  name="achievements"
+                  value={formData.achievements}
+                  onChange={handleChange}
+                  placeholder="Hackathon winner, Open-source contributor"
                 />
               </div>
 
@@ -353,10 +641,20 @@ const CreateProfilePage = () => {
                 <input
                   type="file"
                   id="photoUpload"
+                  className="file-input-hidden"
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   onChange={handlePhotoFileSelect}
                 />
-                {uploading && <p>Processing image...</p>}
+                <label htmlFor="photoUpload" className="file-upload-trigger">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span>{selectedPhotoName ? 'Change photo' : 'Choose photo'}</span>
+                </label>
+                {selectedPhotoName && <p className="selected-file-name">{selectedPhotoName}</p>}
+                {uploading && <p className="status-note">Processing image...</p>}
               </div>
 
               <div className="form-group">

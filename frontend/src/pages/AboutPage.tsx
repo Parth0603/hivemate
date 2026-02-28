@@ -1,134 +1,130 @@
 import { useNavigate } from 'react-router-dom';
 import './AboutPage.css';
 
+const featureItems = [
+  {
+    title: 'Radar Discovery',
+    description: 'Find people nearby in real-time using explore mode and smart range controls.'
+  },
+  {
+    title: 'Privacy First',
+    description: 'Vanish mode, visibility control, and permissioned profile sharing.'
+  },
+  {
+    title: 'Secure Chat',
+    description: 'Encrypted conversations designed for safe and focused networking.'
+  },
+  {
+    title: 'Collaboration Gigs',
+    description: 'Create and discover jobs, projects, startups, and hackathons.'
+  },
+  {
+    title: 'Connection Progression',
+    description: 'Features unlock as trust increases between connected users.'
+  },
+  {
+    title: 'Search by Username',
+    description: 'Find people directly with username search across the platform.'
+  }
+];
+
+const steps = [
+  {
+    title: 'Create your profile',
+    description: 'Set up your identity with skills, intent, and a discoverable username.'
+  },
+  {
+    title: 'Enable explore mode',
+    description: 'Appear on radar and discover professionals around you.'
+  },
+  {
+    title: 'Connect with intent',
+    description: 'Send connection requests and build meaningful professional relationships.'
+  },
+  {
+    title: 'Collaborate and grow',
+    description: 'Start chats, join gigs, and expand your trusted network.'
+  }
+];
+
 const AboutPage = () => {
   const navigate = useNavigate();
 
   return (
     <div className="about-page">
-      <header className="about-header">
-        <button className="back-button" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
-        <h1>About HiveMate</h1>
-      </header>
+      <div className="about-shell">
+        <header className="about-header">
+          <button className="about-back-btn" onClick={() => navigate(-1)}>
+            Back
+          </button>
+          <h1>About HiveMate</h1>
+          <p>Professional networking with proximity, privacy, and purpose.</p>
+        </header>
 
-      <main className="about-content">
-        <section className="about-section">
-          <h2>🐝 What is HiveMate?</h2>
-          <p>
-            HiveMate is a geo-powered professional networking ecosystem that merges local 
-            connection discovery with professional collaboration. We help professionals discover 
-            nearby talent, build meaningful work relationships, and collaborate on projects through 
-            an innovative radar-based interface.
-          </p>
-        </section>
+        <main className="about-content">
+          <section className="about-card about-card-hero">
+            <h2>What HiveMate Is</h2>
+            <p>
+              HiveMate is a networking-first platform. It combines local radar discovery, profile-based
+              matching, secure messaging, and collaboration workflows so users can meet the right people
+              and build real professional outcomes.
+            </p>
+          </section>
 
-        <section className="about-section">
-          <h2>🎯 Our Mission</h2>
-          <p>
-            To revolutionize professional networking by combining real-time geolocation discovery 
-            with career collaboration features, making it easier than ever to find the right people 
-            for your professional journey.
-          </p>
-        </section>
+          <section className="about-card">
+            <h2>Our Mission</h2>
+            <p>
+              Build a trusted networking graph where location awareness and strong privacy controls help
+              people discover opportunities faster and collaborate better.
+            </p>
+          </section>
 
-        <section className="about-section">
-          <h2>✨ Key Features</h2>
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">📡</div>
-              <h3>Radar Discovery</h3>
-              <p>Find nearby professionals in real-time using our innovative radar interface</p>
+          <section className="about-card">
+            <h2>Core Features</h2>
+            <div className="about-feature-grid">
+              {featureItems.map((item) => (
+                <article key={item.title} className="about-feature-item">
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                </article>
+              ))}
             </div>
-            <div className="feature-card">
-              <div className="feature-icon">🔒</div>
-              <h3>Privacy Controls</h3>
-              <p>Toggle between Explore and Vanish modes to control your visibility</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">💬</div>
-              <h3>Encrypted Chat</h3>
-              <p>Secure end-to-end encrypted messaging with your connections</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">💼</div>
-              <h3>Gig Collaboration</h3>
-              <p>Create and discover professional opportunities for projects and jobs</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🤝</div>
-              <h3>Progressive Trust</h3>
-              <p>Communication features unlock as you build relationships</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🎯</div>
-              <h3>AI-Powered Matching</h3>
-              <p>Smart profile optimization for better discoverability</p>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="about-section">
-          <h2>🚀 How It Works</h2>
-          <div className="steps">
-            <div className="step">
-              <div className="step-number">1</div>
-              <div className="step-content">
-                <h3>Create Your Profile</h3>
-                <p>Share your skills, profession, and professional interests</p>
-              </div>
-            </div>
-            <div className="step">
-              <div className="step-number">2</div>
-              <div className="step-content">
-                <h3>Enable Explore Mode</h3>
-                <p>Become visible on the radar to discover nearby professionals</p>
-              </div>
-            </div>
-            <div className="step">
-              <div className="step-number">3</div>
-              <div className="step-content">
-                <h3>Connect & Collaborate</h3>
-                <p>Send connection requests and unlock communication features</p>
-              </div>
-            </div>
-            <div className="step">
-              <div className="step-number">4</div>
-              <div className="step-content">
-                <h3>Build Your Network</h3>
-                <p>Create gigs, join projects, and grow your professional community</p>
-              </div>
-            </div>
-          </div>
-        </section>
+          <section className="about-card">
+            <h2>How It Works</h2>
+            <ol className="about-steps">
+              {steps.map((step, index) => (
+                <li key={step.title} className="about-step-item">
+                  <span className="about-step-num">{index + 1}</span>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
 
-        <section className="about-section">
-          <h2>🔐 Privacy & Security</h2>
-          <p>
-            Your privacy and security are our top priorities. We use end-to-end encryption for 
-            all messages, secure authentication, and give you complete control over your visibility. 
-            Your full profile and photos are only visible to mutual connections, ensuring your 
-            information stays private until you choose to share it.
-          </p>
-        </section>
+          <section className="about-card">
+            <h2>Security and Privacy</h2>
+            <p>
+              Messages are encrypted, sessions are authenticated, and profile visibility is intentionally
+              scoped. Public view and connected view are separated so sensitive profile details are not
+              overexposed.
+            </p>
+          </section>
 
-        <section className="about-section">
-          <h2>📧 Contact Us</h2>
-          <p>
-            Have questions or feedback? We'd love to hear from you!
-          </p>
-          <div className="contact-info">
-            <p>Email: <a href="mailto:support@hivemate.com">support@hivemate.com</a></p>
-            <p>Follow us on social media for updates and tips</p>
-          </div>
-        </section>
-
-        <section className="about-section version-info">
-          <p className="version">Version 1.0.0</p>
-          <p className="copyright">© 2026 HiveMate. All rights reserved.</p>
-        </section>
-      </main>
+          <section className="about-card about-card-footer">
+            <h2>Contact</h2>
+            <p>
+              Email: <a href="mailto:support@hivemate.com">support@hivemate.com</a>
+            </p>
+            <p className="about-meta">Version 1.0.0</p>
+            <p className="about-meta">Copyright 2026 HiveMate</p>
+          </section>
+        </main>
+      </div>
     </div>
   );
 };

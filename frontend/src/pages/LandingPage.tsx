@@ -9,6 +9,7 @@ interface RadarDot {
   distance: number;
   angle: number;
   color: string;
+  name: string;
 }
 
 const LandingPage = () => {
@@ -18,33 +19,39 @@ const LandingPage = () => {
   const [scanAngle, setScanAngle] = useState(0);
   const [hoveredDot, setHoveredDot] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const radarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const hasRememberedSession = localStorage.getItem('rememberMe') === 'true' && !!localStorage.getItem('token');
+    if (hasRememberedSession) {
+      navigate('/home');
+      return;
+    }
+
     setIsVisible(true);
-    
-    // Generate random radar dots INSIDE the radar - only pink and blue
+
+    // Generate random preview dots (landing only)
     const dots: RadarDot[] = [];
-    const colors = ['#0096ff', '#ff0080']; // Blue and Pink only
-    
-    for (let i = 0; i < 12; i++) {
+    const colors = ['#4f7dff', '#6a8df5', '#7c5aed', '#2f67d9'];
+    const names = ['Aarav', 'Isha', 'Kabir', 'Maya', 'Riya', 'Neel', 'Arjun', 'Sana', 'Rahul', 'Anaya'];
+
+    for (let i = 0; i < 10; i++) {
       const angle = Math.random() * 360;
-      const distance = 20 + Math.random() * 25; // 20-45% from center (keeps dots well inside)
+      const distance = 20 + Math.random() * 26;
       const radians = angle * Math.PI / 180;
-      
+
       dots.push({
         id: i,
         x: 50 + Math.cos(radians) * distance,
         y: 50 + Math.sin(radians) * distance,
         distance,
         angle,
-        color: colors[Math.floor(Math.random() * colors.length)]
+        color: colors[Math.floor(Math.random() * colors.length)],
+        name: names[i % names.length]
       });
     }
     setRadarDots(dots);
-  }, []);
+  }, [navigate]);
 
-  // Animate radar scan
   useEffect(() => {
     const interval = setInterval(() => {
       setScanAngle(prev => (prev + 2) % 360);
@@ -64,13 +71,12 @@ const LandingPage = () => {
     const height = canvas.height;
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = Math.min(width, height) / 2 - 20;
+    const radius = Math.min(width, height) / 2 - 28;
 
-    // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Draw radar circles
-    ctx.strokeStyle = 'rgba(0, 150, 255, 0.2)';
+    // Rings
+    ctx.strokeStyle = 'rgba(99, 135, 232, 0.24)';
     ctx.lineWidth = 1;
     for (let i = 1; i <= 3; i++) {
       ctx.beginPath();
@@ -78,8 +84,8 @@ const LandingPage = () => {
       ctx.stroke();
     }
 
-    // Draw crosshair
-    ctx.strokeStyle = 'rgba(0, 150, 255, 0.3)';
+    // Crosshair
+    ctx.strokeStyle = 'rgba(99, 135, 232, 0.3)';
     ctx.beginPath();
     ctx.moveTo(centerX, centerY - radius);
     ctx.lineTo(centerX, centerY + radius);
@@ -87,7 +93,7 @@ const LandingPage = () => {
     ctx.lineTo(centerX + radius, centerY);
     ctx.stroke();
 
-    // Draw scanning line
+    // Scan beam
     const scanRad = (scanAngle * Math.PI) / 180;
     const gradient = ctx.createLinearGradient(
       centerX,
@@ -95,9 +101,9 @@ const LandingPage = () => {
       centerX + Math.cos(scanRad) * radius,
       centerY + Math.sin(scanRad) * radius
     );
-    gradient.addColorStop(0, 'rgba(0, 150, 255, 0)');
-    gradient.addColorStop(0.5, 'rgba(0, 150, 255, 0.3)');
-    gradient.addColorStop(1, 'rgba(0, 150, 255, 0.8)');
+    gradient.addColorStop(0, 'rgba(99, 135, 232, 0)');
+    gradient.addColorStop(0.5, 'rgba(99, 135, 232, 0.34)');
+    gradient.addColorStop(1, 'rgba(99, 135, 232, 0.9)');
 
     ctx.strokeStyle = gradient;
     ctx.lineWidth = 2;
@@ -109,8 +115,8 @@ const LandingPage = () => {
     );
     ctx.stroke();
 
-    // Draw scan arc (trail effect)
-    ctx.strokeStyle = 'rgba(0, 150, 255, 0.1)';
+    // Trail
+    ctx.strokeStyle = 'rgba(99, 135, 232, 0.12)';
     ctx.lineWidth = radius;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius / 2, scanRad - 0.5, scanRad);
@@ -124,103 +130,124 @@ const LandingPage = () => {
 
   return (
     <div className="landing-page">
-      <div className="grid-bg"></div>
-      
-      <div className={`content ${isVisible ? 'visible' : ''}`}>
-        <div className="header-section">
-          <div className="logo">
-            <div className="logo-ring"></div>
-            <div className="logo-pulse"></div>
+      <div className="landing-orb landing-orb-left"></div>
+      <div className="landing-orb landing-orb-right"></div>
+      <div className="landing-grid"></div>
+
+      <div className={`landing-content ${isVisible ? 'visible' : ''}`}>
+        <header className="landing-topbar">
+          <div className="landing-brand">
+            <span className="landing-brand-main">Hive</span>
+            <span className="landing-brand-accent">Mate</span>
+          </div>
+          <div className="landing-topbar-actions">
+            <button className="landing-btn-secondary" onClick={() => navigate('/login')}>Sign In</button>
+            <button className="landing-btn-primary" onClick={() => navigate('/register')}>Get Started</button>
+          </div>
+        </header>
+
+        <section className="landing-hero">
+          <div className="landing-copy">
+            <p className="landing-eyebrow">PROFESSIONAL NETWORKING, REIMAGINED</p>
+            <h1 className="landing-title">
+              Meet people nearby before the opportunity is gone.
+            </h1>
+            <p className="landing-subtitle">
+              HiveMate helps you discover collaborators, teammates, and meaningful connections around you in real time.
+            </p>
+
+            <div className="landing-cta-row">
+              <button className="landing-btn-primary landing-btn-lg" onClick={() => navigate('/register')}>
+                Create Your Profile
+              </button>
+              <button className="landing-btn-secondary landing-btn-lg" onClick={() => navigate('/login')}>
+                I Already Have an Account
+              </button>
+            </div>
+
+            <div className="landing-highlights">
+              <div className="landing-highlight">Explore / Vanish modes</div>
+              <div className="landing-highlight">Encrypted chat + calls</div>
+              <div className="landing-highlight">Partner + Team Mate discovery</div>
+            </div>
           </div>
 
-          <h1 className="title">
-            Hive<span className="neon">Mate</span>
-          </h1>
-
-          <p className="subtitle">
-            Discover professionals in your area
-          </p>
-        </div>
-
-        {/* Interactive Radar */}
-        <div className="radar-wrapper">
-          <div className="radar-container" ref={radarRef}>
-            <canvas 
-              ref={canvasRef} 
-              width={500} 
-              height={500}
-              className="radar-canvas"
-            />
-            
-            <div className="radar-dots">
-              {radarDots.map(dot => (
-                <div
-                  key={dot.id}
-                  className="radar-dot"
-                  style={{
-                    left: `${dot.x}%`,
-                    top: `${dot.y}%`,
-                    backgroundColor: dot.color,
-                    boxShadow: `0 0 20px ${dot.color}`,
-                    animationDelay: `${dot.id * 0.1}s`
-                  }}
-                  onClick={handleDotClick}
-                  onMouseEnter={() => setHoveredDot(dot.id)}
-                  onMouseLeave={() => setHoveredDot(null)}
-                >
-                  {hoveredDot === dot.id && (
-                    <div className="dot-tooltip">Unknown User</div>
-                  )}
+          <div className="landing-radar-card">
+            <div className="landing-radar-head">
+              <h3>Live Radar Preview</h3>
+              <span className="landing-live-pill">Updating</span>
+            </div>
+            <div className="landing-radar-wrap">
+              <div className="radar-container">
+                <canvas
+                  ref={canvasRef}
+                  width={560}
+                  height={560}
+                  className="radar-canvas"
+                />
+                <div className="radar-dots">
+                  {radarDots.map(dot => (
+                    <button
+                      key={dot.id}
+                      type="button"
+                      className="radar-dot"
+                      style={{
+                        left: `${dot.x}%`,
+                        top: `${dot.y}%`,
+                        backgroundColor: dot.color
+                      }}
+                      onClick={handleDotClick}
+                      onMouseEnter={() => setHoveredDot(dot.id)}
+                      onMouseLeave={() => setHoveredDot(null)}
+                      onTouchStart={() => setHoveredDot(dot.id)}
+                      onTouchEnd={() => setHoveredDot(null)}
+                      aria-label={`Preview ${dot.name}`}
+                    >
+                      {hoveredDot === dot.id && (
+                        <span className="dot-tooltip">{dot.name}</span>
+                      )}
+                    </button>
+                  ))}
                 </div>
-              ))}
+                <div className="radar-center"></div>
+              </div>
             </div>
-
-            <div className="radar-center">
-              <div className="center-pulse"></div>
-            </div>
+            <p className="landing-radar-note">Tap any profile to start your journey.</p>
           </div>
-          
-          <div className="radar-label">Click any dot to connect</div>
-        </div>
+        </section>
 
-        <div className="buttons">
-          <button className="btn-get-started" onClick={() => navigate('/register')}>
-            Get Started
-          </button>
-          <button className="btn-sign-in" onClick={() => navigate('/login')}>
-            Sign In
-          </button>
-        </div>
-
-        <div className="features">
-          <div className="feature">
-            <div className="feature-icon">
+        <section className="landing-features">
+          <article className="landing-feature-card">
+            <div className="landing-feature-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                 <circle cx="12" cy="9" r="2.5"/>
               </svg>
             </div>
-            <span>Real-Time Location</span>
-          </div>
-          <div className="feature">
-            <div className="feature-icon">
+            <h4>Nearby Discovery</h4>
+            <p>See people around your range and filter by niche before you connect.</p>
+          </article>
+          <article className="landing-feature-card">
+            <div className="landing-feature-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
             </div>
-            <span>End-to-End Encrypted</span>
-          </div>
-          <div className="feature">
-            <div className="feature-icon">
+            <h4>Private by Default</h4>
+            <p>Encrypted messages and controlled visibility with explore and vanish modes.</p>
+          </article>
+          <article className="landing-feature-card">
+            <div className="landing-feature-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
                 <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
               </svg>
             </div>
-            <span>Professional Gigs</span>
-          </div>
-        </div>
+            <h4>Build and Grow</h4>
+            <p>Find teammates, post gigs, and move from chat to call in one platform.</p>
+          </article>
+        </section>
       </div>
     </div>
   );
