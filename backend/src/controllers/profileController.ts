@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import Profile from '../models/Profile';
 import Friendship from '../models/Friendship';
 import User from '../models/User';
@@ -22,7 +23,8 @@ export const createProfile = async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const profileData = {
       ...req.body,
-      username: normalizeUsername(req.body?.username)
+      username: normalizeUsername(req.body?.username),
+      gender: String(req.body?.gender || '').trim().toLowerCase()
     };
 
     console.log('Creating profile for user:', userId);
@@ -86,6 +88,11 @@ export const createProfile = async (req: Request, res: Response) => {
 
     await User.findByIdAndUpdate(userId, { username: requestedUsername });
 
+    const normalizedReligion = String(profileData.religion || '').trim().toLowerCase();
+    const normalizedReligionOther = normalizedReligion === 'other'
+      ? String(profileData.religionOther || '').trim()
+      : undefined;
+
     // Create profile
     const profile = new Profile({
       userId,
@@ -93,8 +100,8 @@ export const createProfile = async (req: Request, res: Response) => {
       username: requestedUsername,
       age: profileData.age,
       gender: profileData.gender,
-      religion: String(profileData.religion || '').trim().toLowerCase(),
-      religionOther: profileData.religionOther ? String(profileData.religionOther).trim() : undefined,
+      religion: normalizedReligion,
+      religionOther: normalizedReligionOther || undefined,
       phone: String(profileData.phone || '').trim(),
       place: profileData.place,
       skills: profileData.skills,
@@ -135,6 +142,7 @@ export const createProfile = async (req: Request, res: Response) => {
         name: profile.name,
         username: profile.username,
         age: profile.age,
+        gender: profile.gender,
         religion: profile.religion,
         religionOther: profile.religionOther,
         phone: profile.phone,
@@ -160,20 +168,24 @@ export const createProfile = async (req: Request, res: Response) => {
 
 export const getProfile = async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
-    const requestingUserId = (req as any).userId;
+    const { userId: requestedIdentifier } = req.params;
+    const requestingUserId = String((req as any).userId || '');
 
-    console.log('getProfile called - userId param:', userId, 'Type:', typeof userId);
+    console.log('getProfile called - userId param:', requestedIdentifier, 'Type:', typeof requestedIdentifier);
     console.log('Requesting user:', requestingUserId);
 
-    // Try to get from cache first
-    const cachedProfile = await CacheService.getProfile(userId);
+    const profileCacheKey = String(requestedIdentifier || '');
+    // Try to get from cache first (requested identifier key)
+    const cachedProfile = await CacheService.getProfile(profileCacheKey);
     let profile: any = cachedProfile;
 
     if (!profile) {
       // Query database if not in cache
       console.log('Profile not in cache, querying database...');
-      profile = await Profile.findOne({ userId }).lean();
+      profile = await Profile.findOne({ userId: profileCacheKey }).lean();
+      if (!profile && mongoose.Types.ObjectId.isValid(profileCacheKey)) {
+        profile = await Profile.findById(profileCacheKey).lean();
+      }
       console.log('Database query result:', profile ? 'Found' : 'Not found');
       if (!profile) {
         return res.status(404).json({
@@ -184,35 +196,44 @@ export const getProfile = async (req: Request, res: Response) => {
           }
         });
       }
-      // Cache the profile
-      await CacheService.setProfile(userId, profile);
+      // Cache the profile under canonical user id and requested identifier
+      const canonicalUserIdForCache = String(profile.userId || '');
+      if (canonicalUserIdForCache) {
+        await CacheService.setProfile(canonicalUserIdForCache, profile);
+      }
+      if (profileCacheKey && profileCacheKey !== canonicalUserIdForCache) {
+        await CacheService.setProfile(profileCacheKey, profile);
+      }
     }
 
-    const isOwnProfile = userId === requestingUserId;
+    const resolvedUserId = String(profile.userId || '');
+    const isOwnProfile = resolvedUserId === requestingUserId;
 
     // Check if users are friends
     let areFriends = false;
     if (!isOwnProfile) {
       // Try to get friendship from cache
-      const cachedFriendship = await CacheService.getFriendship(requestingUserId, userId);
+      const cachedFriendship = await CacheService.getFriendship(requestingUserId, resolvedUserId);
       if (cachedFriendship !== null) {
         areFriends = cachedFriendship as boolean;
       } else {
         const friendship = await Friendship.findOne({
           $or: [
-            { user1Id: requestingUserId, user2Id: userId },
-            { user1Id: userId, user2Id: requestingUserId }
+            { user1Id: requestingUserId, user2Id: resolvedUserId },
+            { user1Id: resolvedUserId, user2Id: requestingUserId }
           ],
           blocked: false
         }).lean();
         areFriends = !!friendship;
         // Cache the friendship status
-        await CacheService.setFriendship(requestingUserId, userId, areFriends);
+        await CacheService.setFriendship(requestingUserId, resolvedUserId, areFriends);
       }
     }
 
-    // Return full profile for own profile or friends, limited for others
-    if (isOwnProfile || areFriends) {
+    // Two-profile model:
+    // 1) own profile => full details
+    // 2) anyone else => public view only (same from radar/search/profile links)
+    if (isOwnProfile) {
       res.json({
         profile: {
           id: profile._id,
@@ -220,6 +241,7 @@ export const getProfile = async (req: Request, res: Response) => {
           name: profile.name,
           username: profile.username,
           age: profile.age,
+          gender: profile.gender,
           religion: profile.religion,
           religionOther: profile.religionOther,
           phone: profile.phone,
@@ -236,10 +258,52 @@ export const getProfile = async (req: Request, res: Response) => {
           createdAt: profile.createdAt,
           updatedAt: profile.updatedAt
         },
-        accessLevel: isOwnProfile ? 'own' : 'friend'
+        accessLevel: 'own'
       });
     } else {
-      // Limited profile preview (bio only)
+      let mutualCount = 0;
+      let mutualFriends: Array<{ userId: string; name: string }> = [];
+      try {
+        const [requesterFriendships, targetFriendships] = await Promise.all([
+          Friendship.find({
+            $or: [{ user1Id: requestingUserId }, { user2Id: requestingUserId }],
+            blocked: false
+          }).lean(),
+          Friendship.find({
+            $or: [{ user1Id: resolvedUserId }, { user2Id: resolvedUserId }],
+            blocked: false
+          }).lean()
+        ]);
+
+        const requesterFriendIds = new Set(
+          requesterFriendships
+            .map((f: any) =>
+              String(f.user1Id) === String(requestingUserId) ? String(f.user2Id) : String(f.user1Id)
+            )
+            .filter((id: string) => id !== String(resolvedUserId))
+        );
+
+        const targetFriendIds = targetFriendships
+          .map((f: any) => (String(f.user1Id) === String(resolvedUserId) ? String(f.user2Id) : String(f.user1Id)))
+          .filter((id: string) => id !== String(requestingUserId));
+
+        const mutualIds = targetFriendIds.filter((id: string) => requesterFriendIds.has(id));
+        mutualCount = mutualIds.length;
+
+        if (mutualCount > 0) {
+          const mutualProfiles = await Profile.find({ userId: { $in: mutualIds.slice(0, 3) } })
+            .select('userId name')
+            .lean();
+          mutualFriends = mutualProfiles.map((p: any) => ({
+            userId: String(p.userId),
+            name: p.name || 'Unknown'
+          }));
+        }
+      } catch (mutualError) {
+        console.error('Mutual friend calculation error:', mutualError);
+      }
+
+      // Public profile shared consistently for any non-owner viewer
       res.json({
         profile: {
           id: profile._id,
@@ -247,11 +311,25 @@ export const getProfile = async (req: Request, res: Response) => {
           name: profile.name,
           username: profile.username,
           age: profile.age,
+          gender: profile.gender,
+          religion: profile.religion,
+          religionOther: profile.religionOther,
+          place: profile.place,
+          photos: profile.photos,
           profession: profile.profession,
           bio: profile.bio,
-          verified: profile.verified
+          skills: profile.skills,
+          achievements: profile.achievements,
+          college: profile.college,
+          company: profile.company,
+          websiteUrl: profile.websiteUrl,
+          verified: profile.verified,
+          createdAt: profile.createdAt,
+          updatedAt: profile.updatedAt
         },
-        accessLevel: 'preview'
+        accessLevel: areFriends ? 'connected' : 'public',
+        mutualCount,
+        mutualFriends
       });
     }
   } catch (error: any) {
@@ -328,9 +406,17 @@ export const updateProfile = async (req: Request, res: Response) => {
       await User.findByIdAndUpdate(userId, { username: requestedUsername });
     }
     if (updates.age !== undefined) profile.age = updates.age;
-    if (updates.gender !== undefined) profile.gender = updates.gender;
-    if (updates.religion !== undefined) profile.religion = String(updates.religion).trim().toLowerCase();
-    if (updates.religionOther !== undefined) profile.religionOther = updates.religionOther;
+    if (updates.gender !== undefined) profile.gender = String(updates.gender || '').trim().toLowerCase() as any;
+    if (updates.religion !== undefined) {
+      profile.religion = String(updates.religion).trim().toLowerCase();
+      if (profile.religion !== 'other') {
+        profile.religionOther = undefined;
+      }
+    }
+    if (updates.religionOther !== undefined) {
+      const normalizedOther = String(updates.religionOther || '').trim();
+      profile.religionOther = normalizedOther || undefined;
+    }
     if (String(profile.religion || '').toLowerCase() === 'other' && !String(updates.religionOther ?? profile.religionOther ?? '').trim()) {
       return res.status(400).json({
         error: {

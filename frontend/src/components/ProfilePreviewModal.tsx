@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/runtimeConfig';
+import { goToProfile, resolveProfileTarget } from '../utils/profileRouting';
 import './ProfilePreviewModal.css';
 
 interface ProfilePreviewModalProps {
@@ -23,9 +24,37 @@ const ProfilePreviewModal = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('none');
-  const [accessLevel, setAccessLevel] = useState<'own' | 'friend' | 'preview' | ''>('');
+  const [accessLevel, setAccessLevel] = useState<'own' | 'connected' | 'public' | ''>('');
 
   const API_URL = getApiBaseUrl();
+  const normalizeId = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      if (value.$oid) return String(value.$oid);
+      if (value._id) return normalizeId(value._id);
+      if (typeof value.toString === 'function') {
+        const text = value.toString();
+        if (text && text !== '[object Object]') return text;
+      }
+    }
+    return String(value);
+  };
+  const toTitleCase = (value: any) =>
+    String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .split(' ')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+
+  const formatReligion = (religion: any, religionOther?: any) => {
+    const normalized = String(religion || '').trim().toLowerCase();
+    if (normalized === 'other') return toTitleCase(religionOther || 'Other');
+    if (normalized === 'hindu') return 'Hinduism';
+    if (normalized === 'hinduism') return 'Hinduism';
+    return toTitleCase(normalized);
+  };
 
   useEffect(() => {
     fetchProfileAndRelationship();
@@ -39,11 +68,14 @@ const ProfilePreviewModal = ({
         return;
       }
 
-      const [profileResult, pendingResult] = await Promise.allSettled([
+      const [profileResult, pendingResult, friendsResult] = await Promise.allSettled([
         fetch(`${API_URL}/api/profiles/${userId}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`${API_URL}/api/connections/pending`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${API_URL}/api/friends`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -64,18 +96,29 @@ const ProfilePreviewModal = ({
       setProfile(profileData.profile);
       setAccessLevel(profileData.accessLevel || '');
 
-      if (profileData.accessLevel === 'friend' || profileData.accessLevel === 'own') {
+      if (profileData.accessLevel === 'connected' || profileData.accessLevel === 'own') {
         setRelationshipStatus('connected');
         return;
+      }
+
+      if (friendsResult.status === 'fulfilled' && friendsResult.value.ok) {
+        const friendsData = await friendsResult.value.json();
+        const isFriend = (friendsData.friends || []).some(
+          (friend: any) => normalizeId(friend.friendId) === normalizeId(userId)
+        );
+        if (isFriend) {
+          setRelationshipStatus('connected');
+          return;
+        }
       }
 
       if (pendingResult.status === 'fulfilled' && pendingResult.value.ok) {
         const pendingData = await pendingResult.value.json();
         const hasSentRequest = (pendingData.sent || []).some(
-          (req: any) => String(req.receiverId) === String(userId)
+          (req: any) => normalizeId(req.receiverId) === normalizeId(userId)
         );
         const hasReceivedRequest = (pendingData.received || []).some(
-          (req: any) => String(req.senderId) === String(userId)
+          (req: any) => normalizeId(req.senderId) === normalizeId(userId)
         );
 
         if (hasSentRequest) {
@@ -131,6 +174,11 @@ const ProfilePreviewModal = ({
     navigate(`/chat/${userId}`);
   };
 
+  const openProfile = () => {
+    onClose();
+    goToProfile(navigate, resolveProfileTarget(profile) || userId);
+  };
+
   const openConnections = () => {
     onClose();
     navigate('/connections');
@@ -138,7 +186,7 @@ const ProfilePreviewModal = ({
 
   const profilePhoto = profile?.photos?.[0] || initialPhotoUrl || '';
   const profileName = profile?.name || initialName || 'Unknown User';
-  const profileProfession = profile?.profession || '';
+  const profileProfession = profile?.profession ? toTitleCase(profile.profession) : '';
   const isConnected = relationshipStatus === 'connected';
 
   return (
@@ -164,8 +212,15 @@ const ProfilePreviewModal = ({
               </div>
               <h2>{profileName}</h2>
               <p className="profession">{profileProfession}</p>
+              <div className="profile-quick-meta">
+                {profile?.age && <span>{profile.age} yrs</span>}
+                {profile?.gender && <span>{toTitleCase(profile.gender)}</span>}
+                {(profile?.religion || profile?.religionOther) && (
+                  <span>{formatReligion(profile.religion, profile.religionOther)}</span>
+                )}
+              </div>
               {isConnected && <span className="connection-pill">Connected</span>}
-              {accessLevel === 'preview' && !isConnected && (
+              {accessLevel === 'public' && !isConnected && (
                 <span className="preview-pill">Preview Profile</span>
               )}
             </div>
@@ -186,29 +241,46 @@ const ProfilePreviewModal = ({
               </div>
             )}
 
-            <div className="profile-actions">
+            <div className="profile-actions dual-actions">
               {relationshipStatus === 'connected' ? (
-                <button className="open-chat-button" onClick={openChatWithUser} type="button">
-                  Open Chat
-                </button>
+                <>
+                  <button className="view-profile-button" onClick={openProfile} type="button">
+                    View Profile
+                  </button>
+                  <button className="open-chat-button" onClick={openChatWithUser} type="button">
+                    Chat
+                  </button>
+                </>
               ) : relationshipStatus === 'request_sent' ? (
-                <button className="request-sent-button" disabled>
-                  Request Sent
-                </button>
+                <>
+                  <button className="view-profile-button" onClick={openProfile} type="button">
+                    View Profile
+                  </button>
+                  <button className="request-sent-button" disabled>
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <path d="M4.5 10.4 8.3 14 15.5 6.8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Request Sent
+                  </button>
+                </>
               ) : relationshipStatus === 'request_received' ? (
-                <button className="pending-review-button" onClick={openConnections} type="button">
-                  Review Request
-                </button>
+                <>
+                  <button className="view-profile-button" onClick={openProfile} type="button">
+                    View Profile
+                  </button>
+                  <button className="pending-review-button" onClick={openConnections} type="button">
+                    Review Request
+                  </button>
+                </>
               ) : (
-                <button className="send-request-button" onClick={sendConnectionRequest} type="button">
-                  Send Connection Request
-                </button>
-              )}
-
-              {!isConnected && (
-                <button className="chat-button" disabled title="Chat unlocks after mutual acceptance">
-                  Chat (Locked)
-                </button>
+                <>
+                  <button className="view-profile-button" onClick={openProfile} type="button">
+                    View Profile
+                  </button>
+                  <button className="send-request-button" onClick={sendConnectionRequest} type="button">
+                    + Add Friend
+                  </button>
+                </>
               )}
             </div>
           </div>

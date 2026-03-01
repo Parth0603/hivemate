@@ -68,6 +68,16 @@
   color: var(--text-primary);
 }
 
+.friend-info {
+  cursor: pointer;
+}
+
+.friend-info:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
 .friend-info .profession {
   color: var(--color-primary);
   margin: 0 0 0.5rem 0;

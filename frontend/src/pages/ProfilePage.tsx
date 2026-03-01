@@ -4,6 +4,14 @@ import AppContainer from '../components/ui/AppContainer';
 import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './ProfilePage.css';
 
+type RelationshipStatus = 'none' | 'request_sent' | 'request_received' | 'connected';
+
+const BackIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { userId: paramUserId } = useParams();
@@ -22,6 +30,14 @@ const ProfilePage = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [accessLevel, setAccessLevel] = useState<'own' | 'connected' | 'public' | ''>('');
+  const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('none');
+  const [sentRequestId, setSentRequestId] = useState<string>('');
+  const [justSentRequest, setJustSentRequest] = useState(false);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [relationshipError, setRelationshipError] = useState('');
+  const [mutualCount, setMutualCount] = useState(0);
+  const [mutualFriends, setMutualFriends] = useState<Array<{ userId: string; name: string }>>([]);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -31,6 +47,19 @@ const ProfilePage = () => {
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const API_URL = getApiBaseUrl();
+  const normalizeId = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      if (value.$oid) return String(value.$oid);
+      if (value._id) return normalizeId(value._id);
+      if (typeof value.toString === 'function') {
+        const text = value.toString();
+        if (text && text !== '[object Object]') return text;
+      }
+    }
+    return String(value);
+  };
 
   const formatListInput = (value: any) => {
     if (Array.isArray(value)) return value.join(', ');
@@ -47,9 +76,38 @@ const ProfilePage = () => {
         ? value
         : [];
 
+  const RELIGION_OPTIONS = [
+    'hinduism',
+    'muslim',
+    'christian',
+    'sikh',
+    'buddhist',
+    'jain',
+    'jewish',
+    'atheist',
+    'agnostic',
+    'other'
+  ];
+
   const getInitial = (value: any) => {
     const source = value || profile?.name || formData?.name || 'U';
     return String(source).charAt(0).toUpperCase();
+  };
+
+  const toTitleCase = (value: any) =>
+    String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .split(' ')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+
+  const formatReligion = (religion: any, religionOther?: any) => {
+    const normalized = String(religion || '').trim().toLowerCase();
+    if (normalized === 'other') return toTitleCase(religionOther || 'Other');
+    if (normalized === 'hindu') return 'Hinduism';
+    if (normalized === 'hinduism') return 'Hinduism';
+    return toTitleCase(normalized);
   };
 
   const toSinglePhotoArray = (photos: any) => {
@@ -70,11 +128,82 @@ const ProfilePage = () => {
   };
 
   useEffect(() => {
-    const currentUserId = localStorage.getItem('userId');
-    const targetUserId = paramUserId || currentUserId;
-    setIsOwnProfile(targetUserId === currentUserId);
-    fetchProfile(targetUserId!);
+    const currentUserId = normalizeId(localStorage.getItem('userId'));
+    const targetIdentifier = normalizeId(paramUserId) || currentUserId;
+    const isOwnByRoute = !normalizeId(paramUserId) || targetIdentifier === currentUserId;
+    setIsOwnProfile(isOwnByRoute);
+    if (targetIdentifier) {
+      fetchProfile(targetIdentifier);
+    } else {
+      setLoading(false);
+    }
   }, [paramUserId]);
+
+  const fetchRelationship = async (targetUserId: string, profileAccessLevel?: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !targetUserId) return;
+      setRelationshipLoading(true);
+      setRelationshipError('');
+
+      const [pendingResult, friendsResult] = await Promise.allSettled([
+        fetch(`${API_URL}/api/connections/pending`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${API_URL}/api/friends`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+
+      let resolvedStatus: RelationshipStatus = 'none';
+      let resolvedSentRequestId = '';
+
+      const candidateIds = new Set(
+        [targetUserId, paramUserId, profile?.userId, profile?.id].filter(Boolean).map((value) => normalizeId(value))
+      );
+
+      if (friendsResult.status === 'fulfilled' && friendsResult.value.ok) {
+        const friendsData = await friendsResult.value.json();
+        const matchedFriendship = (friendsData.friends || []).find(
+          (friend: any) => candidateIds.has(normalizeId(friend.friendId))
+        );
+        if (matchedFriendship) {
+          resolvedStatus = 'connected';
+        }
+      }
+
+      if (resolvedStatus !== 'connected' && (profileAccessLevel === 'connected' || profileAccessLevel === 'own')) {
+        resolvedStatus = 'connected';
+      }
+
+      if (resolvedStatus !== 'connected' && pendingResult.status === 'fulfilled' && pendingResult.value.ok) {
+        const pendingData = await pendingResult.value.json();
+        const sentMatch = (pendingData.sent || []).find(
+          (req: any) => candidateIds.has(normalizeId(req.receiverId))
+        );
+        const hasSentRequest = Boolean(sentMatch);
+        const hasReceivedRequest = (pendingData.received || []).some(
+          (req: any) => candidateIds.has(normalizeId(req.senderId))
+        );
+
+        if (hasSentRequest) {
+          resolvedStatus = 'request_sent';
+          resolvedSentRequestId = normalizeId(sentMatch?.id);
+        } else if (hasReceivedRequest) {
+          resolvedStatus = 'request_received';
+        }
+      }
+
+      setRelationshipStatus(resolvedStatus);
+      setSentRequestId(resolvedSentRequestId);
+      setJustSentRequest(false);
+    } catch (error) {
+      console.error('Failed to fetch relationship:', error);
+      setRelationshipError('Failed to load connection status.');
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -85,12 +214,29 @@ const ProfilePage = () => {
 
       if (response.ok) {
         const data = await response.json();
+        const resolvedAccessLevel = data.accessLevel || '';
         const normalizedProfile = {
           ...data.profile,
           photos: toSinglePhotoArray(data.profile?.photos)
         };
+        const currentUserId = normalizeId(localStorage.getItem('userId'));
+        const resolvedProfileUserId = normalizeId(normalizedProfile?.userId);
+        const resolvedIsOwn =
+          resolvedAccessLevel === 'own' ||
+          (Boolean(currentUserId) && resolvedProfileUserId === currentUserId);
+
         setProfile(normalizedProfile);
         setFormData(normalizedProfile);
+        setAccessLevel(resolvedAccessLevel);
+        setIsOwnProfile(resolvedIsOwn);
+        setMutualCount(Number(data.mutualCount || 0));
+        setMutualFriends(Array.isArray(data.mutualFriends) ? data.mutualFriends : []);
+
+        if (!resolvedIsOwn) {
+          await fetchRelationship(userId, resolvedAccessLevel);
+        } else {
+          setRelationshipStatus('connected');
+        }
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -110,7 +256,7 @@ const ProfilePage = () => {
     setPhotoError('');
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -217,12 +363,159 @@ const ProfilePage = () => {
 
   const handleSave = async () => {
     try {
+      const normalizedFormData = {
+        ...formData,
+        gender: String(formData.gender || '').trim().toLowerCase(),
+        religion: String(formData.religion || '').trim().toLowerCase(),
+        religionOther:
+          String(formData.religion || '').trim().toLowerCase() === 'other'
+            ? String(formData.religionOther || '').trim()
+            : undefined
+      };
       const payload = buildProfilePayload(formData);
+      payload.gender = normalizedFormData.gender;
+      payload.religion = normalizedFormData.religion;
+      payload.religionOther = normalizedFormData.religionOther;
       await saveProfilePayload(payload);
       setIsEditing(false);
       setPhotoError('');
     } catch (error) {
       console.error('Failed to update profile:', error);
+    }
+  };
+
+  const openChatWithUser = () => {
+    const targetUserId = normalizeId(profile?.userId || paramUserId);
+    if (!targetUserId) return;
+    navigate(`/chat/${targetUserId}`);
+  };
+
+  const openFriendList = () => {
+    const targetUserId = normalizeId(profile?.userId || paramUserId);
+    if (!targetUserId) return;
+    navigate(`/friends/${targetUserId}`);
+  };
+
+  const sendConnectionRequest = async () => {
+    try {
+      setRelationshipLoading(true);
+      setRelationshipError('');
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+
+      const response = await fetch(`${API_URL}/api/connections/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ receiverId: targetUserId })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message = data?.error?.message || 'Failed to send request';
+        if (
+          data?.error?.code === 'ALREADY_FRIENDS' ||
+          message.toLowerCase().includes('already connected') ||
+          message.toLowerCase().includes('already friends')
+        ) {
+          setRelationshipStatus('connected');
+          await fetchRelationship(String(targetUserId), accessLevel);
+          return;
+        }
+        throw new Error(message);
+      }
+
+      setRelationshipStatus('request_sent');
+      setSentRequestId('');
+      setJustSentRequest(true);
+    } catch (error: any) {
+      setRelationshipError(error?.message || 'Failed to send request.');
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  const cancelConnectionRequest = async () => {
+    try {
+      setRelationshipLoading(true);
+      setRelationshipError('');
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+
+      let requestId = sentRequestId;
+      if (!requestId) {
+        const pendingResponse = await fetch(`${API_URL}/api/connections/pending`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (pendingResponse.ok) {
+          const pendingData = await pendingResponse.json();
+          const candidateIds = new Set(
+            [targetUserId, paramUserId, profile?.userId, profile?.id].filter(Boolean).map((value) => normalizeId(value))
+          );
+          const sentMatch = (pendingData.sent || []).find(
+            (req: any) => candidateIds.has(normalizeId(req.receiverId))
+          );
+          requestId = normalizeId(sentMatch?.id);
+        }
+      }
+
+      if (!requestId) {
+        throw new Error('Pending request not found');
+      }
+
+      const response = await fetch(`${API_URL}/api/connections/${requestId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to cancel request');
+      }
+
+      setRelationshipStatus('none');
+      setSentRequestId('');
+      setJustSentRequest(false);
+    } catch (error: any) {
+      setRelationshipError(error?.message || 'Failed to cancel request.');
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  const unfriendUser = async () => {
+    try {
+      setRelationshipLoading(true);
+      setRelationshipError('');
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+
+      const response = await fetch(`${API_URL}/api/friends/by-user/${targetUserId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to unfriend user');
+      }
+
+      setRelationshipStatus('none');
+      setAccessLevel('public');
+      setMutualCount(0);
+      setMutualFriends([]);
+      setSentRequestId('');
+      setJustSentRequest(false);
+      await fetchProfile(String(targetUserId));
+    } catch (error: any) {
+      setRelationshipError(error?.message || 'Failed to unfriend user.');
+    } finally {
+      setRelationshipLoading(false);
     }
   };
 
@@ -313,6 +606,36 @@ const ProfilePage = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    const confirmed = window.confirm(
+      'Delete your account permanently? This action cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/profiles/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error?.message || 'Failed to delete account');
+      }
+
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('privateKey');
+      localStorage.removeItem('publicKey');
+      navigate('/register');
+    } catch (error: any) {
+      setPasswordError(error?.message || 'Failed to delete account');
+    }
+  };
+
   if (loading) {
     return <div className="profile-loading">Loading profile...</div>;
   }
@@ -324,14 +647,18 @@ const ProfilePage = () => {
   const primaryPhoto = profile.photos?.[0] || '';
   const verified = Boolean(profile.verified || profile.verification);
   const isPublicView = !isOwnProfile;
+  const displayReligion = formatReligion(profile.religion, profile.religionOther) || 'Not shared';
+  const displayLocation = toTitleCase(profile.place) || 'Not shared';
+  const displayGender = toTitleCase(profile.gender) || 'Not shared';
+  const displayProfession = profile.profession ? toTitleCase(profile.profession) : 'No profession added';
   const infoBlocks = [
-    { label: 'Location', value: profile.place || 'Not shared' },
+    { label: 'Location', value: displayLocation },
     { label: 'Age', value: profile.age ? String(profile.age) : 'Not shared' },
-    { label: 'Religion', value: profile.religionOther || profile.religion || 'Not shared' },
+    { label: 'Religion', value: displayReligion },
     { label: 'Phone', value: profile.phone || 'Not shared' },
-    { label: 'Gender', value: profile.gender || 'Not shared' },
-    { label: 'Company', value: profile.company || 'Not shared' },
-    { label: 'College', value: profile.college || 'Not shared' }
+    { label: 'Gender', value: displayGender },
+    { label: 'Company', value: profile.company ? toTitleCase(profile.company) : 'Not shared' },
+    { label: 'College', value: profile.college ? toTitleCase(profile.college) : 'Not shared' }
   ];
 
   const normalizeWebsite = (url: string) => {
@@ -340,17 +667,21 @@ const ProfilePage = () => {
     return `https://${url}`;
   };
 
+  const completionSource = isEditing ? formData : profile;
+  const completionPhoto = isEditing
+    ? (pendingPhoto || completionSource?.photos?.[0] || primaryPhoto)
+    : primaryPhoto;
   const completionChecks = [
-    Boolean(profile.name),
-    Boolean(profile.profession),
-    Boolean(profile.bio),
-    Boolean(profile.place),
-    Boolean(profile.age),
-    Boolean(profile.gender),
-    Boolean(profile.websiteUrl),
-    Boolean(profile.company || profile.college),
-    Array.isArray(profile.skills) && profile.skills.length > 0,
-    Boolean(primaryPhoto)
+    Boolean(completionSource?.name),
+    Boolean(completionSource?.profession),
+    Boolean(completionSource?.bio),
+    Boolean(completionSource?.place),
+    Boolean(completionSource?.age),
+    Boolean(completionSource?.gender),
+    Boolean(completionSource?.websiteUrl),
+    Boolean(completionSource?.company || completionSource?.college),
+    Array.isArray(completionSource?.skills) && completionSource.skills.length > 0,
+    Boolean(completionPhoto)
   ];
   const completionScore = Math.round((completionChecks.filter(Boolean).length / completionChecks.length) * 100);
 
@@ -358,8 +689,8 @@ const ProfilePage = () => {
     <div className="profile-page">
       <AppContainer className="profile-shell" size="sm">
         <div className="profile-topbar">
-          <button className="profile-nav-btn" onClick={() => navigate('/home')}>
-            Back
+          <button className="profile-nav-btn" onClick={() => navigate('/home')} aria-label="Go back">
+            <BackIcon />
           </button>
           {isOwnProfile && !isEditing && (
             <button className="profile-edit-btn" onClick={handleEdit}>
@@ -411,25 +742,98 @@ const ProfilePage = () => {
           <div className="profile-identity">
             <h1>{profile.name || 'Unknown User'}</h1>
             {profile.username && <p className="profile-username">@{profile.username}</p>}
-            <p>{profile.profession || 'No profession added'}</p>
+            <p>{displayProfession}</p>
             <div className="profile-badges">
               {profile.age && <span className="owner-badge">{profile.age} yrs</span>}
+              {displayReligion !== 'Not shared' && <span className="owner-badge">{displayReligion}</span>}
               {verified && <span className="verified-badge">Verified</span>}
-              {isOwnProfile && <span className="owner-badge">Your Profile</span>}
-              {isPublicView && <span className="public-badge">Public View</span>}
             </div>
           </div>
+
+          {isPublicView && (
+            <div className="profile-hero-actions">
+              {relationshipStatus === 'connected' ? (
+                <>
+                  <button
+                    type="button"
+                    className="profile-action-danger"
+                    onClick={unfriendUser}
+                    disabled={relationshipLoading}
+                  >
+                    {relationshipLoading ? 'Updating...' : 'Unfriend'}
+                  </button>
+                  <button type="button" className="profile-action-primary" onClick={openChatWithUser}>
+                    Chat
+                  </button>
+                  <button type="button" className="profile-action-primary" onClick={openFriendList}>
+                    Friend List
+                  </button>
+                </>
+              ) : relationshipStatus === 'request_sent' ? (
+                justSentRequest ? (
+                  <button type="button" className="profile-action-muted profile-action-full" disabled>
+                    Request Sent
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="profile-action-danger profile-action-full"
+                    onClick={cancelConnectionRequest}
+                    disabled={relationshipLoading}
+                  >
+                    {relationshipLoading ? 'Cancelling...' : 'Cancel Connection Request'}
+                  </button>
+                )
+              ) : relationshipStatus === 'request_received' ? (
+                <button type="button" className="profile-action-primary" onClick={() => navigate('/connections')}>
+                  Review Request
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="profile-action-primary profile-action-full"
+                  onClick={sendConnectionRequest}
+                  disabled={relationshipLoading}
+                >
+                  {relationshipLoading ? 'Sending...' : '+ Add Friend'}
+                </button>
+              )}
+              {mutualCount > 0 && (
+                <p className="profile-mutuals">
+                  {mutualCount} mutual {mutualCount === 1 ? 'friend' : 'friends'}
+                  {mutualFriends.length > 0 ? ` • ${mutualFriends.map((friend) => friend.name).join(', ')}` : ''}
+                </p>
+              )}
+              {relationshipError && <p className="profile-connection-error">{relationshipError}</p>}
+            </div>
+          )}
 
           {isOwnProfile && (
             <div className="profile-completion-card">
               <div className="completion-top">
                 <h4>Profile completion</h4>
-                <strong>{completionScore}%</strong>
+                {completionScore === 100 ? (
+                  <span className="completion-done">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <circle cx="10" cy="10" r="9" fill="#16a34a" />
+                      <path d="M5.2 10.5 8.4 13.7 14.8 7.3" fill="none" stroke="#ffffff" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Profile Completed
+                  </span>
+                ) : (
+                  <strong>{completionScore}%</strong>
+                )}
               </div>
               <div className="completion-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionScore}>
                 <div className="completion-fill" style={{ width: `${completionScore}%` }} />
               </div>
-              <p>Complete your profile to improve discoverability on radar and search.</p>
+              <p>
+                {completionScore === 100
+                  ? 'Your profile is fully complete and ready for discovery.'
+                  : isEditing
+                    ? 'Completion updates live as you edit profile fields.'
+                    : 'Complete your profile to improve discoverability on radar and search.'}
+              </p>
             </div>
           )}
         </section>
@@ -460,16 +864,30 @@ const ProfilePage = () => {
               </div>
               <div className="profile-form-group">
                 <label>Gender</label>
-                <input type="text" name="gender" value={formData.gender || ''} onChange={handleChange} placeholder="male / female / other" />
+                <select name="gender" value={String(formData.gender || '').toLowerCase()} onChange={handleChange}>
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
               <div className="profile-form-group">
                 <label>Religion</label>
-                <input type="text" name="religion" value={formData.religion || ''} onChange={handleChange} />
+                <select name="religion" value={String(formData.religion || '').toLowerCase()} onChange={handleChange}>
+                  <option value="">Select religion</option>
+                  {RELIGION_OPTIONS.map((religion) => (
+                    <option key={religion} value={religion}>
+                      {toTitleCase(religion)}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="profile-form-group">
-                <label>Religion Other</label>
-                <input type="text" name="religionOther" value={formData.religionOther || ''} onChange={handleChange} />
-              </div>
+              {(String(formData.religion || '').toLowerCase() === 'other') && (
+                <div className="profile-form-group">
+                  <label>Religion Other</label>
+                  <input type="text" name="religionOther" value={formData.religionOther || ''} onChange={handleChange} />
+                </div>
+              )}
               <div className="profile-form-group">
                 <label>Phone</label>
                 <input type="text" name="phone" value={formData.phone || ''} onChange={handleChange} />
@@ -507,14 +925,112 @@ const ProfilePage = () => {
           </section>
         ) : (
           <div className="profile-layout">
+            <section className="profile-card">
+              <h3>About</h3>
+              <p className="profile-about">{profile.bio || 'No bio added yet.'}</p>
+            </section>
+
+            <section className="profile-card">
+              <h3>Details</h3>
+              <div className="profile-details-grid">
+                {isPublicView ? (
+                  <>
+                    <div className="detail-item">
+                      <span>Religion</span>
+                      <strong>{displayReligion}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Location</span>
+                      <strong>{displayLocation}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Gender</span>
+                      <strong>{displayGender}</strong>
+                    </div>
+                    {profile.company && (
+                      <div className="detail-item">
+                        <span>Company</span>
+                        <strong>{toTitleCase(profile.company)}</strong>
+                      </div>
+                    )}
+                    {profile.college && (
+                      <div className="detail-item">
+                        <span>College</span>
+                        <strong>{toTitleCase(profile.college)}</strong>
+                      </div>
+                    )}
+                    {profile.websiteUrl && (
+                      <div className="detail-item detail-item-full">
+                        <span>Website</span>
+                        <a
+                          className="profile-website-btn"
+                          href={normalizeWebsite(profile.websiteUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Visit Website
+                        </a>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {infoBlocks.map((item) => (
+                      <div key={item.label} className="detail-item">
+                        <span>{item.label}</span>
+                        <strong>{item.value}</strong>
+                      </div>
+                    ))}
+                    <div className="detail-item detail-item-full">
+                      <span>Website</span>
+                      {profile.websiteUrl ? (
+                        <a
+                          className="profile-website-btn"
+                          href={normalizeWebsite(profile.websiteUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Visit Website
+                        </a>
+                      ) : (
+                        <strong>Not shared</strong>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+
+            <section className="profile-card">
+              <h3>Skills</h3>
+              <div className="skills-container">
+                {(profile.skills || []).length > 0 ? (
+                  profile.skills.map((skill: string, index: number) => (
+                    <span key={index} className="skill-tag">{skill}</span>
+                  ))
+                ) : (
+                  <p className="profile-empty-text">No skills added yet.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="profile-card">
+              <h3>Achievements</h3>
+              {(profile.achievements || []).length > 0 ? (
+                <ul className="achievements-list">
+                  {profile.achievements.map((achievement: string, index: number) => (
+                    <li key={index}>{achievement}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="profile-empty-text">No achievements listed yet.</p>
+              )}
+            </section>
+
             {isOwnProfile && (
               <section className="profile-card quick-actions">
                 <h3>Quick Actions</h3>
                 <div className="quick-actions-grid">
-                  <button onClick={() => navigate('/friends')}>Friends</button>
-                  <button onClick={() => navigate('/connections')}>Connections</button>
-                  <button onClick={() => navigate('/chat')}>Messages</button>
-                  <button onClick={() => navigate('/gig/create')}>Add Gig</button>
                   <button
                     onClick={() => {
                       setShowChangePassword((prev) => !prev);
@@ -523,6 +1039,9 @@ const ProfilePage = () => {
                     }}
                   >
                     Change Password
+                  </button>
+                  <button className="danger-action-button" onClick={handleDeleteAccount}>
+                    Delete Account Permanently
                   </button>
                 </div>
 
@@ -586,61 +1105,6 @@ const ProfilePage = () => {
                 )}
               </section>
             )}
-
-            <section className="profile-card">
-              <h3>About</h3>
-              <p className="profile-about">{profile.bio || 'No bio added yet.'}</p>
-            </section>
-
-            {!isPublicView && (
-              <section className="profile-card">
-                <h3>Details</h3>
-                <div className="profile-details-grid">
-                  {infoBlocks.map((item) => (
-                    <div key={item.label} className="detail-item">
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                    </div>
-                  ))}
-                  <div className="detail-item">
-                    <span>Website</span>
-                    {profile.websiteUrl ? (
-                      <a href={normalizeWebsite(profile.websiteUrl)} target="_blank" rel="noopener noreferrer">
-                        {profile.websiteUrl}
-                      </a>
-                    ) : (
-                      <strong>Not shared</strong>
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
-
-            <section className="profile-card">
-              <h3>Skills</h3>
-              <div className="skills-container">
-                {(profile.skills || []).length > 0 ? (
-                  profile.skills.map((skill: string, index: number) => (
-                    <span key={index} className="skill-tag">{skill}</span>
-                  ))
-                ) : (
-                  <p className="profile-empty-text">No skills added yet.</p>
-                )}
-              </div>
-            </section>
-
-            <section className="profile-card">
-              <h3>Achievements</h3>
-              {(profile.achievements || []).length > 0 ? (
-                <ul className="achievements-list">
-                  {profile.achievements.map((achievement: string, index: number) => (
-                    <li key={index}>{achievement}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="profile-empty-text">No achievements listed yet.</p>
-              )}
-            </section>
           </div>
         )}
       </AppContainer>

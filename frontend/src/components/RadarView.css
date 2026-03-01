@@ -174,11 +174,11 @@
   touch-action: pan-y;
   position: static;
   inset: auto;
-  width: min(680px, calc(100vw - 7rem));
-  height: min(680px, calc(100vw - 7rem));
+  width: min(680px, calc(100% - 1rem));
+  height: min(680px, calc(100% - 1rem));
   aspect-ratio: 1 / 1;
   object-fit: contain;
-  margin: 0 auto;
+  margin-inline: auto;
 }
 
 .vanish-message {
@@ -483,8 +483,8 @@
   }
 
   .radar-canvas {
-    width: min(94vw, 520px);
-    height: min(94vw, 520px);
+    width: min(520px, calc(100% - 0.4rem));
+    height: min(520px, calc(100% - 0.4rem));
   }
 
   .nearby-list {

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/runtimeConfig';
 import AppContainer from '../components/ui/AppContainer';
 import PageHeader from '../components/ui/PageHeader';
+import { goToProfile } from '../utils/profileRouting';
 import './FriendsPage.css';
 
 interface Friend {
@@ -18,26 +19,36 @@ interface Friend {
 
 const FriendsPage = () => {
   const navigate = useNavigate();
+  const { userId } = useParams();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [ownerName, setOwnerName] = useState('');
 
   const API_URL = getApiBaseUrl();
+  const currentUserId = localStorage.getItem('userId') || '';
+  const isOwnList = !userId || String(userId) === String(currentUserId);
 
   useEffect(() => {
     fetchFriends();
-  }, []);
+  }, [userId]);
 
   const fetchFriends = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/friends`, {
+      const endpoint = isOwnList ? `${API_URL}/api/friends` : `${API_URL}/api/friends/user/${userId}`;
+      const response = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.ok) {
         const data = await response.json();
         setFriends(data.friends || []);
+        if (!isOwnList && data.owner?.name) {
+          setOwnerName(data.owner.name);
+        } else {
+          setOwnerName('');
+        }
       }
     } catch (error) {
       console.error('Failed to fetch friends:', error);
@@ -91,7 +102,7 @@ const FriendsPage = () => {
       <AppContainer size="sm">
         <div className="friends-container ui-card">
           <PageHeader
-            title="Friends"
+            title={isOwnList ? 'Friends' : `${ownerName || 'User'}'s Friends`}
             leftSlot={
               <button className="back-button ui-btn ui-btn-ghost" onClick={() => navigate('/home')}>
                 Back
@@ -119,7 +130,18 @@ const FriendsPage = () => {
           <div className="friends-list">
             {filteredFriends.map((friend) => (
               <div key={friend.friendshipId} className="friend-card">
-                <div className="friend-info">
+                <div
+                  className="friend-info"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => goToProfile(navigate, friend.friendId)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      goToProfile(navigate, friend.friendId);
+                    }
+                  }}
+                >
                   <h3>{friend.name}</h3>
                   <p className="profession">{friend.profession || ''}</p>
                   <span className={`comm-level ${friend.communicationLevel}`}>
@@ -128,17 +150,19 @@ const FriendsPage = () => {
                     {friend.communicationLevel === 'video' && 'Video'}
                   </span>
                 </div>
-                <div className="friend-actions">
-                  <button className="message-btn ui-btn ui-btn-primary" onClick={() => navigate(`/chat/${friend.friendId}`)}>
-                    Message
-                  </button>
-                  <button className="remove-btn ui-btn ui-btn-secondary" onClick={() => handleRemoveFriend(friend.friendshipId)}>
-                    Remove
-                  </button>
-                  <button className="block-btn ui-btn ui-btn-ghost" onClick={() => handleBlockFriend(friend.friendshipId)}>
-                    Block
-                  </button>
-                </div>
+                {isOwnList && (
+                  <div className="friend-actions">
+                    <button className="message-btn ui-btn ui-btn-primary" onClick={() => navigate(`/chat/${friend.friendId}`)}>
+                      Message
+                    </button>
+                    <button className="remove-btn ui-btn ui-btn-secondary" onClick={() => handleRemoveFriend(friend.friendshipId)}>
+                      Remove
+                    </button>
+                    <button className="block-btn ui-btn ui-btn-ghost" onClick={() => handleBlockFriend(friend.friendshipId)}>
+                      Block
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

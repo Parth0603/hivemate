@@ -3,7 +3,8 @@ import {
   sendConnectionRequest,
   acceptConnectionRequest,
   declineConnectionRequest,
-  getPendingRequests
+  getPendingRequests,
+  cancelConnectionRequest
 } from '../controllers/connectionController';
 import { authenticate } from '../middleware/auth';
 
@@ -13,6 +14,7 @@ const router = Router();
 router.post('/request', authenticate, sendConnectionRequest);
 router.put('/:requestId/accept', authenticate, acceptConnectionRequest);
 router.put('/:requestId/decline', authenticate, declineConnectionRequest);
+router.delete('/:requestId', authenticate, cancelConnectionRequest);
 router.get('/pending', authenticate, getPendingRequests);
 
 export default router;

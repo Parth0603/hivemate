@@ -10,7 +10,7 @@ const API_URL = getApiBaseUrl();
 const MAX_IMAGE_DIMENSION = 1280;
 const MAX_BASE64_BYTES = 4.5 * 1024 * 1024;
 const RELIGION_OPTIONS = [
-  'hindu',
+  'hinduism',
   'muslim',
   'christian',
   'sikh',

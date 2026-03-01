@@ -274,6 +274,60 @@ export const getUserChats = async (req: Request, res: Response) => {
   }
 };
 
+export const openPersonalChat = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { friendId } = req.params;
+
+    if (!friendId) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Friend ID is required',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    const chatRoom = await ChatService.getOrCreatePersonalChatRoom(userId, friendId);
+    const friendProfile = await Profile.findOne({ userId: friendId }).lean();
+
+    res.json({
+      chat: {
+        chatRoomId: chatRoom._id,
+        type: chatRoom.type,
+        participants: friendProfile
+          ? [{
+              userId: friendProfile.userId,
+              name: friendProfile.name,
+              profession: friendProfile.profession
+            }]
+          : [],
+        lastMessage: null,
+        lastMessageAt: chatRoom.lastMessageAt
+      }
+    });
+  } catch (error: any) {
+    if (error.message === 'Users must be friends to chat') {
+      return res.status(403).json({
+        error: {
+          code: 'NOT_FRIENDS',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+    console.error('Open personal chat error:', error);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while opening chat',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};
+
 export const deleteMessageForMe = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;

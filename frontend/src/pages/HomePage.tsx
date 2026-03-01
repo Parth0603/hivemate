@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RadarView from '../components/RadarView';
-import GigFeed from '../components/GigFeed';
 import NotificationBell from '../components/NotificationBell';
 import AppContainer from '../components/ui/AppContainer';
-import { useToast } from '../components/Toast';
+import { goToProfile } from '../utils/profileRouting';
 import './HomePage.css';
 
 type ViewMode = 'partner' | 'teammate';
@@ -79,7 +78,6 @@ const LogoutIcon = () => (
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { showToast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>('partner');
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -122,10 +120,6 @@ const HomePage = () => {
     navigate('/login');
   };
 
-  const handleCreateGig = () => {
-    navigate('/gig/create');
-  };
-
   useEffect(() => {
     setIsPanelSwitching(true);
     const timeout = window.setTimeout(() => setIsPanelSwitching(false), 250);
@@ -133,10 +127,6 @@ const HomePage = () => {
   }, [viewMode]);
 
   const activateMode = (mode: ViewMode) => {
-    if (mode === 'teammate') {
-      showToast('Find a Team Mate is under development and will be available soon.', 'info', 3200);
-      return;
-    }
     setViewMode(mode);
   };
 
@@ -194,7 +184,7 @@ const HomePage = () => {
 
           <button
             className="profile-button top-profile-button"
-            onClick={() => navigate('/profile')}
+            onClick={() => goToProfile(navigate, localStorage.getItem('userId'))}
             title="Profile"
             aria-label="Open profile"
           >
@@ -213,7 +203,7 @@ const HomePage = () => {
 
           {menuOpen && (
             <div className="dropdown-menu">
-              <button onClick={() => { navigate('/profile'); setMenuOpen(false); setMobileMenuOpen(false); }}>
+              <button onClick={() => { goToProfile(navigate, localStorage.getItem('userId')); setMenuOpen(false); setMobileMenuOpen(false); }}>
                 <span className="menu-icon"><UserIcon /></span>
                 Profile
               </button>
@@ -290,7 +280,18 @@ const HomePage = () => {
               {viewMode === 'partner' ? (
                 <RadarView />
               ) : (
-                <GigFeed onCreateGig={handleCreateGig} />
+                <section className="teammate-soon-panel" aria-live="polite">
+                  <div className="teammate-soon-card">
+                    <h2>Find a Team Mate</h2>
+                    <p>
+                      This section is in active development. We are building a cleaner way to discover
+                      verified collaborators for jobs, startups, projects, and hackathons.
+                    </p>
+                    <button className="teammate-soon-btn" onClick={() => setViewMode('partner')}>
+                      Back to Find a Partner
+                    </button>
+                  </div>
+                </section>
               )}
             </div>
           </main>
@@ -299,7 +300,7 @@ const HomePage = () => {
 
       {mobileMenuOpen && (
         <div className="mobile-menu-panel" id="mobile-home-menu" ref={mobileMenuRef}>
-          <button onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}>
+          <button onClick={() => { goToProfile(navigate, localStorage.getItem('userId')); setMobileMenuOpen(false); }}>
             <span className="menu-icon"><UserIcon /></span>
             Profile
           </button>

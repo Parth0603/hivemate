@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { EncryptionService } from '../utils/encryption';
 import CallModal from '../components/CallModal';
 import { getApiBaseUrl, getWsBaseUrl } from '../utils/runtimeConfig';
+import { goToProfile } from '../utils/profileRouting';
 import './ChatPage.css';
 
 interface ChatRoom {
@@ -82,6 +83,19 @@ const ChatPage = () => {
   const WS_URL = getWsBaseUrl();
   const currentUserId = localStorage.getItem('userId');
   const currentUserIdStr = String(currentUserId || '');
+  const normalizeId = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      if (value.$oid) return String(value.$oid);
+      if (value._id) return normalizeId(value._id);
+      if (typeof value.toString === 'function') {
+        const text = value.toString();
+        if (text && text !== '[object Object]') return text;
+      }
+    }
+    return String(value);
+  };
 
   const getOtherParticipant = (room: ChatRoom) =>
     room.participants.find((p) => String(p.userId) !== currentUserIdStr);
@@ -96,7 +110,7 @@ const ChatPage = () => {
 
   const openUserProfile = (userId: string) => {
     if (!userId) return;
-    navigate(`/profile/${userId}`);
+    goToProfile(navigate, userId);
   };
 
   useEffect(() => {
@@ -314,18 +328,54 @@ const ChatPage = () => {
         
         // If friendshipId is provided, select that chat
         if (friendshipId && chats.length > 0) {
+          const targetId = normalizeId(friendshipId);
           const chat = chats.find((c: ChatRoom) =>
-            c.participants.some(p => String(p.userId) === String(friendshipId))
+            c.participants.some((p) => normalizeId(p.userId) === targetId)
           );
           if (chat) {
             setSelectedChatRoom(chat);
+            if (isMobileView) setShowSidebarOnMobile(false);
+          } else {
+            await openDirectChat(targetId);
           }
+        } else if (friendshipId && chats.length === 0) {
+          await openDirectChat(normalizeId(friendshipId));
         }
       }
     } catch (error) {
       console.error('Failed to load chat rooms:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDirectChat = async (targetUserId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const normalizedTargetUserId = normalizeId(targetUserId);
+      if (!token || !normalizedTargetUserId) return;
+
+      const response = await fetch(`${API_URL}/api/messages/open/${normalizedTargetUserId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) return;
+      const data = await response.json();
+      const openedChat = data?.chat;
+      if (!openedChat) return;
+
+      setChatRooms((prev) => {
+        const exists = prev.some((room) => String(room.chatRoomId) === String(openedChat.chatRoomId));
+        if (exists) return prev;
+        return [openedChat, ...prev];
+      });
+
+      await hydrateParticipantPhotos([openedChat]);
+      setSelectedChatRoom(openedChat);
+      if (isMobileView) setShowSidebarOnMobile(false);
+    } catch (error) {
+      console.error('Failed to open direct chat:', error);
     }
   };
 

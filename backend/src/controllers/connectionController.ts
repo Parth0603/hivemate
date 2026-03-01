@@ -7,6 +7,7 @@ import { getWebSocketServer } from '../websocket/server';
 import { InteractionService } from '../services/interactionService';
 import { NotificationService } from '../services/notificationService';
 import { ChatService } from '../services/chatService';
+import { CacheService } from '../services/cacheService';
 
 export const sendConnectionRequest = async (req: Request, res: Response) => {
   try {
@@ -53,9 +54,26 @@ export const sendConnectionRequest = async (req: Request, res: Response) => {
     });
 
     if (existingRequest) {
-      // Allow re-sending if the previous request was declined.
-      // We reuse the same row because sender/receiver pair is unique.
-      if (existingRequest.status === 'declined') {
+      // Allow re-sending if previous request was declined, or if it was accepted in the past
+      // but friendship no longer exists (after unfriend).
+      if (existingRequest.status === 'declined' || existingRequest.status === 'accepted') {
+        const existingFriendship = await Friendship.findOne({
+          $or: [
+            { user1Id: senderId, user2Id: receiverId },
+            { user1Id: receiverId, user2Id: senderId }
+          ]
+        });
+
+        if (existingRequest.status === 'accepted' && existingFriendship) {
+          return res.status(409).json({
+            error: {
+              code: 'ALREADY_FRIENDS',
+              message: 'Already connected with this user',
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+
         existingRequest.status = 'pending';
         existingRequest.createdAt = new Date();
         existingRequest.respondedAt = undefined;
@@ -98,52 +116,6 @@ export const sendConnectionRequest = async (req: Request, res: Response) => {
             createdAt: existingRequest.createdAt
           }
         });
-      }
-
-      // Self-heal legacy state: accepted request exists but friendship was never created.
-      if (existingRequest.status === 'accepted') {
-        const existingFriendship = await Friendship.findOne({
-          $or: [
-            { user1Id: senderId, user2Id: receiverId },
-            { user1Id: receiverId, user2Id: senderId }
-          ]
-        });
-
-        if (!existingFriendship) {
-          const hasSubscription = await InteractionService.hasActiveSubscription(
-            senderId.toString(),
-            receiverId.toString()
-          );
-
-          const friendship = new Friendship({
-            user1Id: senderId,
-            user2Id: receiverId,
-            establishedAt: new Date(),
-            communicationLevel: hasSubscription ? 'video' : 'chat',
-            interactionCount: 0
-          });
-
-          await friendship.save();
-
-          try {
-            await ChatService.getOrCreatePersonalChatRoom(
-              senderId.toString(),
-              receiverId.toString()
-            );
-          } catch (chatRoomError) {
-            console.error('Chat room restoration error:', chatRoomError);
-          }
-
-          return res.status(200).json({
-            message: 'Connection already accepted; friendship restored',
-            friendship: {
-              id: friendship._id,
-              user1Id: friendship.user1Id,
-              user2Id: friendship.user2Id,
-              establishedAt: friendship.establishedAt
-            }
-          });
-        }
       }
 
       return res.status(409).json({
@@ -299,6 +271,10 @@ export const acceptConnectionRequest = async (req: Request, res: Response) => {
       });
 
       await friendship.save();
+      await CacheService.invalidateFriendship(
+        request.senderId.toString(),
+        request.receiverId.toString()
+      );
 
       try {
         await ChatService.getOrCreatePersonalChatRoom(
@@ -487,6 +463,63 @@ export const getPendingRequests = async (req: Request, res: Response) => {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: 'An error occurred while fetching pending requests',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};
+
+export const cancelConnectionRequest = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { requestId } = req.params;
+
+    const request = await ConnectionRequest.findById(requestId);
+    if (!request) {
+      return res.status(404).json({
+        error: {
+          code: 'REQUEST_NOT_FOUND',
+          message: 'Connection request not found',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    if (request.senderId.toString() !== userId) {
+      return res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'You can only cancel requests sent by you',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATUS',
+          message: 'Only pending requests can be cancelled',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    await ConnectionRequest.findByIdAndDelete(requestId);
+
+    res.json({
+      message: 'Connection request cancelled',
+      request: {
+        id: requestId,
+        status: 'cancelled'
+      }
+    });
+  } catch (error: any) {
+    console.error('Cancel connection request error:', error);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while cancelling connection request',
         timestamp: new Date().toISOString()
       }
     });
