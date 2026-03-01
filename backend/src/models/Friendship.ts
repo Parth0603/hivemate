@@ -7,6 +7,7 @@ export interface IFriendship extends Document {
   communicationLevel: 'chat' | 'voice' | 'video';
   interactionCount: number;
   blocked: boolean;
+  blockedBy?: mongoose.Types.ObjectId | null;
 }
 
 const FriendshipSchema: Schema = new Schema({
@@ -38,6 +39,11 @@ const FriendshipSchema: Schema = new Schema({
   blocked: {
     type: Boolean,
     default: false
+  },
+  blockedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   }
 });
 

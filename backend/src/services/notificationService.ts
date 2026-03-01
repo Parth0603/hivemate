@@ -8,7 +8,15 @@ export class NotificationService {
    */
   static async createNotification(
     userId: string,
-    type: 'nearby' | 'friend_request' | 'friend_accepted' | 'gig_application' | 'message' | 'call_request',
+    type:
+      | 'nearby'
+      | 'friend_request'
+      | 'friend_accepted'
+      | 'gig_application'
+      | 'message'
+      | 'call_request'
+      | 'match'
+      | 'match_unlike',
     title: string,
     message: string,
     data?: any

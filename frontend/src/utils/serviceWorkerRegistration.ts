@@ -1,7 +1,18 @@
-/**
- * Service Worker Registration Utility
- * Handles registration and updates of the service worker.
- */
+let waitingServiceWorker: ServiceWorker | null = null;
+let hasUpdateEventFired = false;
+
+const dispatchUpdateAvailable = () => {
+  if (hasUpdateEventFired) return;
+  hasUpdateEventFired = true;
+  window.dispatchEvent(new CustomEvent('hivemate:update-available'));
+};
+
+const trackWaitingWorker = (registration: ServiceWorkerRegistration) => {
+  if (registration.waiting) {
+    waitingServiceWorker = registration.waiting;
+    dispatchUpdateAvailable();
+  }
+};
 
 export function register() {
   if (!('serviceWorker' in navigator)) return;
@@ -13,25 +24,20 @@ export function register() {
       .register(swUrl)
       .then((registration) => {
         console.log('Service Worker registered:', registration);
+        trackWaitingWorker(registration);
 
         setInterval(() => {
           registration.update();
-        }, 60000);
+        }, 30000);
 
         registration.onupdatefound = () => {
           const installingWorker = registration.installing;
           if (!installingWorker) return;
 
           installingWorker.onstatechange = () => {
-            if (installingWorker.state === 'installed') {
-              if (navigator.serviceWorker.controller) {
-                console.log('New content available, please refresh.');
-                if (window.confirm('New version available! Reload to update?')) {
-                  window.location.reload();
-                }
-              } else {
-                console.log('Content cached for offline use.');
-              }
+            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              waitingServiceWorker = registration.waiting || installingWorker;
+              dispatchUpdateAvailable();
             }
           };
         };
@@ -40,6 +46,17 @@ export function register() {
         console.error('Service Worker registration failed:', error);
       });
   });
+}
+
+export function applyUpdate() {
+  if (!('serviceWorker' in navigator)) return;
+  if (!waitingServiceWorker) return;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  }, { once: true });
+
+  waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
 }
 
 export function unregister() {

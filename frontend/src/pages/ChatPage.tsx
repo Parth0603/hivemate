@@ -75,6 +75,7 @@ const ChatPage = () => {
   const [isMobileView, setIsMobileView] = useState(false);
   const [showSidebarOnMobile, setShowSidebarOnMobile] = useState(true);
   const [participantPhotos, setParticipantPhotos] = useState<Record<string, string>>({});
+  const [activeMatchBadge, setActiveMatchBadge] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Socket | null>(null);
   const selectedChatRoomRef = useRef<ChatRoom | null>(null);
@@ -159,6 +160,34 @@ const ChatPage = () => {
     }, 3000);
 
     return () => clearInterval(interval);
+  }, [selectedChatRoom?.chatRoomId]);
+
+  useEffect(() => {
+    const loadMatchStatus = async () => {
+      const targetUserId = selectedChatRoom?.participants.find(
+        (p) => String(p.userId) !== currentUserIdStr
+      )?.userId;
+      if (!targetUserId) {
+        setActiveMatchBadge(false);
+        return;
+      }
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/api/match/status/${targetUserId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) {
+          setActiveMatchBadge(false);
+          return;
+        }
+        const data = await response.json();
+        setActiveMatchBadge(Boolean(data?.isMatched));
+      } catch {
+        setActiveMatchBadge(false);
+      }
+    };
+
+    loadMatchStatus();
   }, [selectedChatRoom?.chatRoomId]);
 
   useEffect(() => {
@@ -946,6 +975,7 @@ const ChatPage = () => {
                     <span className="lock-icon">🔒</span>
                     <span>End-to-end encrypted</span>
                   </div>
+                  {activeMatchBadge && <div className="typing-indicator">Matched 💖</div>}
                   {isPeerTyping && <div className="typing-indicator">Typing...</div>}
                 </div>
                 <div className="call-buttons">

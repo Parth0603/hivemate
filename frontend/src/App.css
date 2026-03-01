@@ -7,6 +7,40 @@
   color: var(--text-primary);
 }
 
+.app-update-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.58rem 0.82rem;
+  border-radius: 999px;
+  border: 1px solid rgba(147, 174, 224, 0.45);
+  background: rgba(11, 35, 77, 0.94);
+  color: #f8fbff;
+  box-shadow: 0 12px 24px rgba(8, 23, 52, 0.24);
+  font-size: 0.9rem;
+  backdrop-filter: blur(8px);
+}
+
+.app-update-btn {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #3058cc 0%, #5f82ea 100%);
+  color: #ffffff;
+  padding: 0.42rem 0.88rem;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-update-btn:hover {
+  filter: brightness(1.04);
+}
+
 .app-loading-inner {
   text-align: center;
 }

@@ -3,6 +3,31 @@ import Friendship from '../models/Friendship';
 import ConnectionRequest from '../models/ConnectionRequest';
 import Profile from '../models/Profile';
 import { CacheService } from '../services/cacheService';
+import ChatRoom from '../models/ChatRoom';
+import Message from '../models/Message';
+
+const deleteDirectChatData = async (userAId: string, userBId: string) => {
+  const userA = String(userAId);
+  const userB = String(userBId);
+
+  const personalRooms = await ChatRoom.find({
+    type: 'personal',
+    participants: { $all: [userA, userB] }
+  }).select('_id');
+
+  const roomIds = personalRooms.map((room: any) => room._id);
+  if (roomIds.length > 0) {
+    await Message.deleteMany({ chatRoomId: { $in: roomIds } });
+    await ChatRoom.deleteMany({ _id: { $in: roomIds } });
+  }
+
+  await Message.deleteMany({
+    $or: [
+      { senderId: userA, receiverId: userB },
+      { senderId: userB, receiverId: userA }
+    ]
+  });
+};
 
 export const getFriendList = async (req: Request, res: Response) => {
   try {
@@ -284,9 +309,12 @@ export const blockFriend = async (req: Request, res: Response) => {
       });
     }
 
-    // Block friendship
+    // Block friendship and clear direct chat data between both users
     friendship.blocked = true;
+    (friendship as any).blockedBy = userId;
     await friendship.save();
+    await deleteDirectChatData(friendship.user1Id.toString(), friendship.user2Id.toString());
+    await CacheService.invalidateFriendship(friendship.user1Id.toString(), friendship.user2Id.toString());
 
     res.json({
       message: 'Friend blocked successfully'
@@ -297,6 +325,176 @@ export const blockFriend = async (req: Request, res: Response) => {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: 'An error occurred while blocking friend',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};
+
+export const blockFriendByUserId = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { friendUserId } = req.params;
+
+    if (!friendUserId) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Friend user ID is required',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    const friendship = await Friendship.findOne({
+      $or: [
+        { user1Id: userId, user2Id: friendUserId },
+        { user1Id: friendUserId, user2Id: userId }
+      ]
+    });
+
+    if (!friendship) {
+      return res.status(404).json({
+        error: {
+          code: 'FRIENDSHIP_NOT_FOUND',
+          message: 'Friendship not found',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    friendship.blocked = true;
+    (friendship as any).blockedBy = userId;
+    await friendship.save();
+    await deleteDirectChatData(friendship.user1Id.toString(), friendship.user2Id.toString());
+    await CacheService.invalidateFriendship(friendship.user1Id.toString(), friendship.user2Id.toString());
+
+    return res.json({
+      message: 'Friend blocked successfully'
+    });
+  } catch (error: any) {
+    console.error('Block friend by userId error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while blocking friend',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};
+
+export const unblockFriendByUserId = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { friendUserId } = req.params;
+
+    if (!friendUserId) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Friend user ID is required',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    const friendship = await Friendship.findOne({
+      $and: [
+        {
+          $or: [
+            { user1Id: userId, user2Id: friendUserId },
+            { user1Id: friendUserId, user2Id: userId }
+          ]
+        },
+        { blocked: true },
+        {
+          $or: [
+            { blockedBy: userId },
+            { blockedBy: { $exists: false } },
+            { blockedBy: null }
+          ]
+        }
+      ]
+    });
+
+    if (!friendship) {
+      return res.status(404).json({
+        error: {
+          code: 'FRIENDSHIP_NOT_FOUND',
+          message: 'Blocked friendship not found',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    friendship.blocked = false;
+    (friendship as any).blockedBy = null;
+    await friendship.save();
+    await CacheService.invalidateFriendship(friendship.user1Id.toString(), friendship.user2Id.toString());
+
+    return res.json({
+      message: 'Friend unblocked successfully'
+    });
+  } catch (error: any) {
+    console.error('Unblock friend by userId error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while unblocking friend',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};
+
+export const getFriendshipStatusByUserId = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const { targetUserId } = req.params;
+
+    if (!targetUserId) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Target user ID is required',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    const friendship = await Friendship.findOne({
+      $or: [
+        { user1Id: userId, user2Id: targetUserId },
+        { user1Id: targetUserId, user2Id: userId }
+      ]
+    }).lean();
+
+    if (!friendship) {
+      return res.json({
+        status: 'none',
+        blocked: false
+      });
+    }
+
+    const blockedBy = String((friendship as any).blockedBy || '');
+    const blockedBySelf = Boolean(
+      friendship.blocked &&
+      (blockedBy === String(userId) || !blockedBy)
+    );
+
+    return res.json({
+      status: friendship.blocked ? 'blocked' : 'connected',
+      blocked: Boolean(friendship.blocked),
+      blockedBySelf,
+      friendshipId: String(friendship._id)
+    });
+  } catch (error: any) {
+    console.error('Get friendship status by userId error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while fetching friendship status',
         timestamp: new Date().toISOString()
       }
     });

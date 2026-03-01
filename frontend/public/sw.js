@@ -1,13 +1,13 @@
 // Service Worker for HiveMate
-const CACHE_NAME = 'hivemate-v1';
-const STATIC_CACHE = 'hivemate-static-v1';
-const DYNAMIC_CACHE = 'hivemate-dynamic-v1';
+const CACHE_VERSION = 'v2';
+const STATIC_CACHE = `hivemate-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `hivemate-dynamic-${CACHE_VERSION}`;
 
 // Assets to cache on install
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons.svg'
 ];
 
 // Install event - cache static assets
@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network-first for app shell, cache-first for static chunks
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -52,32 +52,47 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+  const isNavigation = request.mode === 'navigate';
+  const isIndexRequest = url.pathname === '/' || url.pathname === '/index.html';
+  const isHashedAsset = /^\/assets\/.+\.[a-z0-9]+?\.(js|css)$/i.test(url.pathname);
 
-      return fetch(request).then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response;
+  if (isNavigation || isIndexRequest) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then((networkResponse) => networkResponse)
+        .catch(async () => {
+          const cache = await caches.open(STATIC_CACHE);
+          return (await cache.match('/')) || (await cache.match('/index.html'));
+        })
+    );
+    return;
+  }
+
+  if (isHashedAsset) {
+    event.respondWith(
+      caches.match(request).then(async (cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        const networkResponse = await fetch(request);
+        if (networkResponse && networkResponse.status === 200) {
+          const cache = await caches.open(DYNAMIC_CACHE);
+          cache.put(request, networkResponse.clone());
         }
+        return networkResponse;
+      })
+    );
+    return;
+  }
 
-        // Clone the response
-        const responseToCache = response.clone();
-
-        // Cache dynamic content
-        caches.open(DYNAMIC_CACHE).then((cache) => {
-          cache.put(request, responseToCache);
-        });
-
-        return response;
-      }).catch(() => {
-        // Return offline page if available
-        return caches.match('/index.html');
-      });
-    })
+  event.respondWith(
+    fetch(request)
+      .then(async (networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const cache = await caches.open(DYNAMIC_CACHE);
+          cache.put(request, networkResponse.clone());
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(request))
   );
 });
 

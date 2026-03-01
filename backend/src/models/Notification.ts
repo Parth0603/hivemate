@@ -2,7 +2,15 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
-  type: 'nearby' | 'friend_request' | 'friend_accepted' | 'gig_application' | 'message' | 'call_request';
+  type:
+    | 'nearby'
+    | 'friend_request'
+    | 'friend_accepted'
+    | 'gig_application'
+    | 'message'
+    | 'call_request'
+    | 'match'
+    | 'match_unlike';
   title: string;
   message: string;
   data?: any;
@@ -19,7 +27,16 @@ const NotificationSchema: Schema = new Schema({
   },
   type: {
     type: String,
-    enum: ['nearby', 'friend_request', 'friend_accepted', 'gig_application', 'message', 'call_request'],
+    enum: [
+      'nearby',
+      'friend_request',
+      'friend_accepted',
+      'gig_application',
+      'message',
+      'call_request',
+      'match',
+      'match_unlike'
+    ],
     required: true,
     index: true
   },

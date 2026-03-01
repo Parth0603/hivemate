@@ -12,6 +12,13 @@ interface ProfilePreviewModalProps {
 }
 
 type RelationshipStatus = 'none' | 'request_sent' | 'request_received' | 'connected';
+type MatchStatus = {
+  canLike: boolean;
+  likedByMe: boolean;
+  likedByOther: boolean;
+  isMatched: boolean;
+  heartVisible?: boolean;
+};
 
 const ProfilePreviewModal = ({
   userId,
@@ -25,6 +32,9 @@ const ProfilePreviewModal = ({
   const [error, setError] = useState('');
   const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('none');
   const [accessLevel, setAccessLevel] = useState<'own' | 'connected' | 'public' | ''>('');
+  const [matchStatus, setMatchStatus] = useState<MatchStatus | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState('');
 
   const API_URL = getApiBaseUrl();
   const normalizeId = (value: any): string => {
@@ -68,7 +78,7 @@ const ProfilePreviewModal = ({
         return;
       }
 
-      const [profileResult, pendingResult, friendsResult] = await Promise.allSettled([
+      const [profileResult, pendingResult, friendsResult, matchResult] = await Promise.allSettled([
         fetch(`${API_URL}/api/profiles/${userId}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
@@ -76,6 +86,9 @@ const ProfilePreviewModal = ({
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`${API_URL}/api/friends`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${API_URL}/api/match/status/${userId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -95,6 +108,12 @@ const ProfilePreviewModal = ({
       const profileData = await profileResponse.json();
       setProfile(profileData.profile);
       setAccessLevel(profileData.accessLevel || '');
+      if (matchResult.status === 'fulfilled' && matchResult.value.ok) {
+        const matchData = await matchResult.value.json();
+        setMatchStatus(matchData);
+      } else {
+        setMatchStatus(null);
+      }
 
       if (profileData.accessLevel === 'connected' || profileData.accessLevel === 'own') {
         setRelationshipStatus('connected');
@@ -169,6 +188,60 @@ const ProfilePreviewModal = ({
     }
   };
 
+  const likeProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      setMatchLoading(true);
+      setMatchError('');
+      const now = new Date();
+      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const tzOffsetMinutes = -now.getTimezoneOffset();
+
+      const response = await fetch(`${API_URL}/api/match/like/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ localDate, tzOffsetMinutes })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to like profile');
+      }
+
+      await fetchProfileAndRelationship();
+    } catch (err: any) {
+      setMatchError(err?.message || 'Failed to like profile');
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
+  const unlikeProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      setMatchLoading(true);
+      setMatchError('');
+      const response = await fetch(`${API_URL}/api/match/unlike/${userId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to unlike profile');
+      }
+
+      await fetchProfileAndRelationship();
+    } catch (err: any) {
+      setMatchError(err?.message || 'Failed to unlike profile');
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
   const openChatWithUser = () => {
     onClose();
     navigate(`/chat/${userId}`);
@@ -188,6 +261,8 @@ const ProfilePreviewModal = ({
   const profileName = profile?.name || initialName || 'Unknown User';
   const profileProfession = profile?.profession ? toTitleCase(profile.profession) : '';
   const isConnected = relationshipStatus === 'connected';
+  const isMatched = Boolean(matchStatus?.isMatched);
+  const canLike = isConnected && Boolean(matchStatus?.canLike);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -212,6 +287,7 @@ const ProfilePreviewModal = ({
               </div>
               <h2>{profileName}</h2>
               <p className="profession">{profileProfession}</p>
+              {isMatched && <span className="connection-pill">Matched 💖</span>}
               <div className="profile-quick-meta">
                 {profile?.age && <span>{profile.age} yrs</span>}
                 {profile?.gender && <span>{toTitleCase(profile.gender)}</span>}
@@ -250,6 +326,16 @@ const ProfilePreviewModal = ({
                   <button className="open-chat-button" onClick={openChatWithUser} type="button">
                     Chat
                   </button>
+                  {canLike && (
+                    <button
+                      className="open-chat-button"
+                      onClick={(isMatched || Boolean(matchStatus?.likedByMe)) ? unlikeProfile : likeProfile}
+                      type="button"
+                      disabled={matchLoading}
+                    >
+                      {matchLoading ? 'Updating...' : (isMatched ? 'Unlike' : (matchStatus?.likedByMe ? 'Withdraw Like' : 'Like'))}
+                    </button>
+                  )}
                 </>
               ) : relationshipStatus === 'request_sent' ? (
                 <>
@@ -283,6 +369,7 @@ const ProfilePreviewModal = ({
                 </>
               )}
             </div>
+            {matchError && <div className="modal-error">{matchError}</div>}
           </div>
         )}
       </div>

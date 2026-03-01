@@ -148,3 +148,23 @@ export const deleteNotification = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const clearAllNotifications = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    await Notification.deleteMany({ userId });
+
+    res.json({
+      message: 'All notifications cleared successfully'
+    });
+  } catch (error: any) {
+    console.error('Clear all notifications error:', error);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An error occurred while clearing notifications',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+};

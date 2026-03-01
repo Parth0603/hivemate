@@ -5,6 +5,7 @@ import { getApiBaseUrl } from '../utils/runtimeConfig';
 import { getWsBaseUrl } from '../utils/runtimeConfig';
 import AppContainer from '../components/ui/AppContainer';
 import PageHeader from '../components/ui/PageHeader';
+import { goToProfile } from '../utils/profileRouting';
 import './ConnectionsPage.css';
 
 interface ConnectionRequest {
@@ -12,11 +13,19 @@ interface ConnectionRequest {
   senderId?: string;
   senderName?: string;
   senderProfession?: string;
+  senderPhoto?: string;
   receiverId?: string;
   receiverName?: string;
   receiverProfession?: string;
+  receiverPhoto?: string;
   createdAt: string;
 }
+
+const BackArrowIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M15 5L8 12L15 19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 const ConnectionsPage = () => {
   const navigate = useNavigate();
@@ -124,6 +133,115 @@ const ConnectionsPage = () => {
     }
   };
 
+  const getInitial = (name?: string) => (name?.charAt(0).toUpperCase() || 'U');
+
+  const renderReceived = () => {
+    if (received.length === 0) {
+      return <div className="no-requests">No pending requests</div>;
+    }
+
+    return received.map((request) => (
+      <div key={request.id} className="request-card">
+        <div className="request-info">
+          <div
+            className="request-avatar-wrap clickable"
+            role="button"
+            tabIndex={0}
+            onClick={() => goToProfile(navigate, request.senderId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToProfile(navigate, request.senderId);
+              }
+            }}
+            aria-label={`Open ${request.senderName || 'user'} profile`}
+          >
+            {request.senderPhoto ? (
+              <img src={request.senderPhoto} alt={request.senderName || 'User'} className="request-avatar-img" />
+            ) : (
+              <div className="request-avatar">{getInitial(request.senderName)}</div>
+            )}
+          </div>
+          <div
+            className="request-meta clickable"
+            role="button"
+            tabIndex={0}
+            onClick={() => goToProfile(navigate, request.senderId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToProfile(navigate, request.senderId);
+              }
+            }}
+            aria-label={`Open ${request.senderName || 'user'} profile`}
+          >
+            <h3>{request.senderName || 'Unknown User'}</h3>
+            <p className="profession">{request.senderProfession || 'No profession shared'}</p>
+            <p className="date">{new Date(request.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <div className="request-actions">
+          <button className="accept-btn ui-btn ui-btn-primary" onClick={() => handleAccept(request.id)}>
+            Accept
+          </button>
+          <button className="decline-btn ui-btn ui-btn-secondary" onClick={() => handleDecline(request.id)}>
+            Decline
+          </button>
+        </div>
+      </div>
+    ));
+  };
+
+  const renderSent = () => {
+    if (sent.length === 0) {
+      return <div className="no-requests">No pending requests</div>;
+    }
+
+    return sent.map((request) => (
+      <div key={request.id} className="request-card sent">
+        <div className="request-info">
+          <div
+            className="request-avatar-wrap clickable"
+            role="button"
+            tabIndex={0}
+            onClick={() => goToProfile(navigate, request.receiverId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToProfile(navigate, request.receiverId);
+              }
+            }}
+            aria-label={`Open ${request.receiverName || 'user'} profile`}
+          >
+            {request.receiverPhoto ? (
+              <img src={request.receiverPhoto} alt={request.receiverName || 'User'} className="request-avatar-img" />
+            ) : (
+              <div className="request-avatar">{getInitial(request.receiverName)}</div>
+            )}
+          </div>
+          <div
+            className="request-meta clickable"
+            role="button"
+            tabIndex={0}
+            onClick={() => goToProfile(navigate, request.receiverId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToProfile(navigate, request.receiverId);
+              }
+            }}
+            aria-label={`Open ${request.receiverName || 'user'} profile`}
+          >
+            <h3>{request.receiverName || 'Unknown User'}</h3>
+            <p className="profession">{request.receiverProfession || 'No profession shared'}</p>
+            <p className="date">Sent on {new Date(request.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <span className="status-badge pending">Pending</span>
+      </div>
+    ));
+  };
+
   return (
     <div className="connections-page">
       <AppContainer size="sm">
@@ -131,73 +249,34 @@ const ConnectionsPage = () => {
           <PageHeader
             title="Connection Requests"
             leftSlot={
-              <button className="back-button ui-btn ui-btn-ghost" onClick={() => navigate('/home')}>
-                Back
+              <button className="connections-back-button" onClick={() => navigate('/home')} aria-label="Go back">
+                <BackArrowIcon />
               </button>
             }
           />
 
-        <div className="tabs">
-          <button
-            className={`tab ${activeTab === 'received' ? 'active' : ''}`}
-            onClick={() => setActiveTab('received')}
-          >
-            Received ({received.length})
-          </button>
-          <button
-            className={`tab ${activeTab === 'sent' ? 'active' : ''}`}
-            onClick={() => setActiveTab('sent')}
-          >
-            Sent ({sent.length})
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="connections-loading">Loading requests...</div>
-        ) : (
-          <div className="requests-list">
-            {activeTab === 'received' ? (
-              received.length === 0 ? (
-                <div className="no-requests">No pending requests</div>
-              ) : (
-                received.map((request) => (
-                  <div key={request.id} className="request-card">
-                    <div className="request-info">
-                      <h3>{request.senderName || 'Unknown User'}</h3>
-                      <p className="profession">{request.senderProfession || ''}</p>
-                      <p className="date">{new Date(request.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div className="request-actions">
-                      <button className="accept-btn ui-btn ui-btn-primary" onClick={() => handleAccept(request.id)}>
-                        Accept
-                      </button>
-                      <button className="decline-btn ui-btn ui-btn-secondary" onClick={() => handleDecline(request.id)}>
-                        Decline
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )
-            ) : (
-              sent.length === 0 ? (
-                <div className="no-requests">No pending requests</div>
-              ) : (
-                sent.map((request) => (
-                  <div key={request.id} className="request-card">
-                    <div className="request-info">
-                      <h3>{request.receiverName || 'Unknown User'}</h3>
-                      <p className="profession">{request.receiverProfession || ''}</p>
-                      <p className="date">
-                        Sent on {new Date(request.createdAt).toLocaleDateString()}
-                      </p>
-                      <span className="status-badge pending">Pending</span>
-                    </div>
-                  </div>
-                ))
-              )
-            )}
+          <div className="connections-tabs">
+            <button
+              className={`connections-tab ${activeTab === 'received' ? 'active' : ''}`}
+              onClick={() => setActiveTab('received')}
+            >
+              Received ({received.length})
+            </button>
+            <button
+              className={`connections-tab ${activeTab === 'sent' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sent')}
+            >
+              Sent ({sent.length})
+            </button>
           </div>
-        )}
+
+          {loading ? (
+            <div className="connections-loading">Loading requests...</div>
+          ) : (
+            <div className="requests-list">
+              {activeTab === 'received' ? renderReceived() : renderSent()}
+            </div>
+          )}
         </div>
       </AppContainer>
     </div>

@@ -172,6 +172,14 @@
   margin: 0;
   font-size: clamp(1.6rem, 2vw, 2rem);
   color: #0f2448;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.profile-match-heart {
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .profile-identity p {
@@ -329,6 +337,7 @@
 }
 
 .profile-action-primary,
+.profile-action-secondary,
 .profile-action-danger,
 .profile-action-muted {
   border-radius: 10px;
@@ -347,6 +356,17 @@
 .profile-action-primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(33, 66, 139, 0.24);
+}
+
+.profile-action-secondary {
+  background: #fff;
+  border-color: rgba(108, 137, 196, 0.45);
+  color: #1f4eb8;
+}
+
+.profile-action-secondary:hover {
+  transform: translateY(-1px);
+  background: #f6f9ff;
 }
 
 .profile-action-danger {
@@ -371,6 +391,7 @@
 }
 
 .profile-action-primary:disabled,
+.profile-action-secondary:disabled,
 .profile-action-danger:disabled,
 .profile-action-muted:disabled {
   opacity: 0.75;

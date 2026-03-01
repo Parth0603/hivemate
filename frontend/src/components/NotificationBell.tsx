@@ -8,7 +8,15 @@ import './NotificationBell.css';
 interface Notification {
   _id: string;
   userId: string;
-  type: 'nearby' | 'friend_request' | 'friend_accepted' | 'gig_application' | 'message' | 'call_request';
+  type:
+    | 'nearby'
+    | 'friend_request'
+    | 'friend_accepted'
+    | 'gig_application'
+    | 'message'
+    | 'call_request'
+    | 'match'
+    | 'match_unlike';
   title: string;
   message: string;
   data?: any;
@@ -223,22 +231,22 @@ const NotificationBell = () => {
     }
   };
 
-  const markAllAsRead = async () => {
+  const clearAllNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
       const API_URL = getApiBaseUrl();
 
-      const response = await fetch(`${API_URL}/api/notifications/read-all`, {
-        method: 'PUT',
+      const response = await fetch(`${API_URL}/api/notifications`, {
+        method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setNotifications([]);
         setUnreadCount(0);
       }
     } catch (error) {
-      console.error('Failed to mark all as read:', error);
+      console.error('Failed to clear all notifications:', error);
     }
   };
 
@@ -278,6 +286,10 @@ const NotificationBell = () => {
         return '\u{1F4AC}';
       case 'call_request':
         return '\u{1F4DE}';
+      case 'match':
+        return '\u{1F49C}';
+      case 'match_unlike':
+        return '\u{1F494}';
       default:
         return '\u{1F514}';
     }
@@ -348,6 +360,20 @@ const NotificationBell = () => {
       }
       return;
     }
+
+    if (notification.type === 'match' || notification.type === 'match_unlike') {
+      const targetUserId = normalizeId(
+        notification?.data?.withUserId ||
+        notification?.data?.requesterId ||
+        notification?.data?.targetUserId
+      );
+      if (targetUserId) {
+        navigate(`/profile/${targetUserId}`);
+      } else {
+        navigate('/home');
+      }
+      return;
+    }
   };
 
   return (
@@ -372,9 +398,9 @@ const NotificationBell = () => {
         <div className="notification-dropdown">
           <div className="notification-header">
             <h3>Notifications</h3>
-            {unreadCount > 0 && (
-              <button className="mark-all-read" type="button" onClick={markAllAsRead}>
-                Mark all read
+            {notifications.length > 0 && (
+              <button className="mark-all-read" type="button" onClick={clearAllNotifications}>
+                Clear all
               </button>
             )}
           </div>

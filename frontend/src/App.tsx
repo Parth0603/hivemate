@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { applyUpdate } from './utils/serviceWorkerRegistration';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 import GlobalCallHandler from './components/GlobalCallHandler';
@@ -35,8 +36,11 @@ const LoadingFallback = () => (
 );
 
 function App() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
   useEffect(() => {
     const interval = window.setInterval(() => {
+      if (!localStorage.getItem('token')) return;
       if (document.visibilityState !== 'visible') return;
       window.dispatchEvent(new CustomEvent('hivemate:soft-refresh'));
     }, 7000);
@@ -44,9 +48,45 @@ function App() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const onUpdateAvailable = () => setUpdateAvailable(true);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && localStorage.getItem('token')) {
+        window.dispatchEvent(new CustomEvent('hivemate:soft-refresh'));
+      }
+    };
+    const onFocus = () => {
+      if (localStorage.getItem('token')) {
+        window.dispatchEvent(new CustomEvent('hivemate:soft-refresh'));
+      }
+    };
+
+    window.addEventListener('hivemate:update-available', onUpdateAvailable as EventListener);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.removeEventListener('hivemate:update-available', onUpdateAvailable as EventListener);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <ToastProvider>
+        {updateAvailable && (
+          <div className="app-update-banner" role="status" aria-live="polite">
+            <span>New version available</span>
+            <button
+              type="button"
+              className="app-update-btn"
+              onClick={() => applyUpdate()}
+            >
+              Update now
+            </button>
+          </div>
+        )}
         <Router>
           <GlobalCallHandler />
           <Suspense fallback={<LoadingFallback />}>

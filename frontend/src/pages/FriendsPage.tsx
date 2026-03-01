@@ -17,6 +17,12 @@ interface Friend {
   communicationLevel: string;
 }
 
+const BackArrowIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M15 5L8 12L15 19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const FriendsPage = () => {
   const navigate = useNavigate();
   const { userId } = useParams();
@@ -97,6 +103,8 @@ const FriendsPage = () => {
     (friend.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getInitial = (name?: string) => (name?.charAt(0).toUpperCase() || 'U');
+
   return (
     <div className="friends-page">
       <AppContainer size="sm">
@@ -104,69 +112,75 @@ const FriendsPage = () => {
           <PageHeader
             title={isOwnList ? 'Friends' : `${ownerName || 'User'}'s Friends`}
             leftSlot={
-              <button className="back-button ui-btn ui-btn-ghost" onClick={() => navigate('/home')}>
-                Back
+              <button className="friends-back-button" onClick={() => navigate('/home')} aria-label="Go back">
+                <BackArrowIcon />
               </button>
             }
           />
 
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder="Search friends..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+          <div className="friends-search-wrap">
+            <input
+              type="text"
+              placeholder="Search friends..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="friends-search-input"
+            />
+          </div>
 
-        {loading ? (
-          <div className="friends-loading">Loading friends...</div>
-        ) : filteredFriends.length === 0 ? (
-          <div className="no-friends">
-            <p>No friends yet</p>
-            <p className="subtitle">Incoming requests are available in Connections.</p>
-          </div>
-        ) : (
-          <div className="friends-list">
-            {filteredFriends.map((friend) => (
-              <div key={friend.friendshipId} className="friend-card">
-                <div
-                  className="friend-info"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => goToProfile(navigate, friend.friendId)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      goToProfile(navigate, friend.friendId);
-                    }
-                  }}
-                >
-                  <h3>{friend.name}</h3>
-                  <p className="profession">{friend.profession || ''}</p>
-                  <span className={`comm-level ${friend.communicationLevel}`}>
-                    {friend.communicationLevel === 'chat' && 'Chat'}
-                    {friend.communicationLevel === 'voice' && 'Voice'}
-                    {friend.communicationLevel === 'video' && 'Video'}
-                  </span>
-                </div>
-                {isOwnList && (
-                  <div className="friend-actions">
-                    <button className="message-btn ui-btn ui-btn-primary" onClick={() => navigate(`/chat/${friend.friendId}`)}>
-                      Message
-                    </button>
-                    <button className="remove-btn ui-btn ui-btn-secondary" onClick={() => handleRemoveFriend(friend.friendshipId)}>
-                      Remove
-                    </button>
-                    <button className="block-btn ui-btn ui-btn-ghost" onClick={() => handleBlockFriend(friend.friendshipId)}>
-                      Block
-                    </button>
+          {loading ? (
+            <div className="friends-loading">Loading friends...</div>
+          ) : filteredFriends.length === 0 ? (
+            <div className="no-friends">
+              <p>No friends yet</p>
+              <p className="subtitle">Incoming requests are available in Connections.</p>
+            </div>
+          ) : (
+            <div className="friends-list">
+              {filteredFriends.map((friend) => (
+                <div key={friend.friendshipId} className="friend-card">
+                  <div
+                    className="friend-info"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => goToProfile(navigate, friend.friendId)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        goToProfile(navigate, friend.friendId);
+                      }
+                    }}
+                  >
+                    <div className="friend-avatar-wrap">
+                      {friend.photos?.[0] ? (
+                        <img src={friend.photos[0]} alt={friend.name} className="friend-avatar" />
+                      ) : (
+                        <span className="friend-avatar-fallback">{getInitial(friend.name)}</span>
+                      )}
+                    </div>
+                    <div className="friend-meta">
+                      <h3>{friend.name}</h3>
+                      <p className="profession">{friend.profession || 'No profession shared'}</p>
+                      {friend.place && <span className="friend-place">{friend.place}</span>}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  {isOwnList && (
+                    <div className="friend-actions">
+                      <button className="message-btn ui-btn ui-btn-primary" onClick={() => navigate(`/chat/${friend.friendId}`)}>
+                        Message
+                      </button>
+                      <button className="remove-btn ui-btn ui-btn-secondary" onClick={() => handleRemoveFriend(friend.friendshipId)}>
+                        Remove
+                      </button>
+                      <button className="block-btn ui-btn ui-btn-ghost" onClick={() => handleBlockFriend(friend.friendshipId)}>
+                        Block
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </AppContainer>
     </div>

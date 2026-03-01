@@ -474,40 +474,42 @@ export const getPendingRequests = async (req: Request, res: Response) => {
     const receivedRequests = await ConnectionRequest.find({
       receiverId: userId,
       status: 'pending'
-    }).populate('senderId', 'email');
+    }).lean();
 
     // Get sent requests
     const sentRequests = await ConnectionRequest.find({
       senderId: userId,
       status: 'pending'
-    }).populate('receiverId', 'email');
+    }).lean();
 
     // Get profiles for senders
-    const senderIds = receivedRequests.map(req => req.senderId);
+    const senderIds = receivedRequests.map(req => String(req.senderId));
     const senderProfiles = await Profile.find({ userId: { $in: senderIds } });
 
     // Get profiles for receivers
-    const receiverIds = sentRequests.map(req => req.receiverId);
+    const receiverIds = sentRequests.map(req => String(req.receiverId));
     const receiverProfiles = await Profile.find({ userId: { $in: receiverIds } });
 
     const received = receivedRequests.map(req => {
-      const profile = senderProfiles.find(p => p.userId.toString() === req.senderId.toString());
+      const profile = senderProfiles.find(p => String(p.userId) === String(req.senderId));
       return {
         id: req._id,
         senderId: req.senderId,
         senderName: profile?.name,
         senderProfession: profile?.profession,
+        senderPhoto: Array.isArray(profile?.photos) && profile.photos.length > 0 ? profile.photos[0] : '',
         createdAt: req.createdAt
       };
     });
 
     const sent = sentRequests.map(req => {
-      const profile = receiverProfiles.find(p => p.userId.toString() === req.receiverId.toString());
+      const profile = receiverProfiles.find(p => String(p.userId) === String(req.receiverId));
       return {
         id: req._id,
         receiverId: req.receiverId,
         receiverName: profile?.name,
         receiverProfession: profile?.profession,
+        receiverPhoto: Array.isArray(profile?.photos) && profile.photos.length > 0 ? profile.photos[0] : '',
         createdAt: req.createdAt
       };
     });

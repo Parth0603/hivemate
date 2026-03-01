@@ -4,7 +4,23 @@ import AppContainer from '../components/ui/AppContainer';
 import { getApiBaseUrl } from '../utils/runtimeConfig';
 import './ProfilePage.css';
 
-type RelationshipStatus = 'none' | 'request_sent' | 'request_received' | 'connected';
+type RelationshipStatus = 'none' | 'request_sent' | 'request_received' | 'connected' | 'blocked';
+type MatchStatus = {
+  connected: boolean;
+  canLike: boolean;
+  likedByMe: boolean;
+  likedByOther: boolean;
+  isMatched: boolean;
+  heartVisible?: boolean;
+  unlikeRequest?: {
+    requesterId: string;
+    responderId: string;
+    attemptsUsed: number;
+    pending: boolean;
+    nextAllowedAt?: string;
+    autoUnmatchAt?: string;
+  } | null;
+};
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -36,6 +52,10 @@ const ProfilePage = () => {
   const [justSentRequest, setJustSentRequest] = useState(false);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
   const [relationshipError, setRelationshipError] = useState('');
+  const [matchStatus, setMatchStatus] = useState<MatchStatus | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState('');
+  const [blockedBySelf, setBlockedBySelf] = useState(false);
   const [mutualCount, setMutualCount] = useState(0);
   const [mutualFriends, setMutualFriends] = useState<Array<{ userId: string; name: string }>>([]);
   const [passwordData, setPasswordData] = useState({
@@ -146,11 +166,14 @@ const ProfilePage = () => {
       setRelationshipLoading(true);
       setRelationshipError('');
 
-      const [pendingResult, friendsResult] = await Promise.allSettled([
+      const [pendingResult, friendsResult, friendshipStatusResult] = await Promise.allSettled([
         fetch(`${API_URL}/api/connections/pending`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch(`${API_URL}/api/friends`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${API_URL}/api/friends/status/${targetUserId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -194,6 +217,18 @@ const ProfilePage = () => {
         }
       }
 
+      if (friendshipStatusResult.status === 'fulfilled' && friendshipStatusResult.value.ok) {
+        const friendshipStatus = await friendshipStatusResult.value.json();
+        if (friendshipStatus?.status === 'blocked') {
+          resolvedStatus = 'blocked';
+          setBlockedBySelf(Boolean(friendshipStatus?.blockedBySelf));
+        } else {
+          setBlockedBySelf(false);
+        }
+      } else {
+        setBlockedBySelf(false);
+      }
+
       setRelationshipStatus(resolvedStatus);
       setSentRequestId(resolvedSentRequestId);
       setJustSentRequest(false);
@@ -202,6 +237,31 @@ const ProfilePage = () => {
       setRelationshipError('Failed to load connection status.');
     } finally {
       setRelationshipLoading(false);
+    }
+  };
+
+  const fetchMatchStatus = async (targetUserId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !targetUserId) return;
+      setMatchLoading(true);
+      setMatchError('');
+      const response = await fetch(`${API_URL}/api/match/status/${targetUserId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to load match status');
+      }
+
+      const data = await response.json();
+      setMatchStatus(data);
+    } catch (error: any) {
+      setMatchStatus(null);
+      setMatchError(error?.message || 'Failed to load match status');
+    } finally {
+      setMatchLoading(false);
     }
   };
 
@@ -234,8 +294,10 @@ const ProfilePage = () => {
 
         if (!resolvedIsOwn) {
           await fetchRelationship(userId, resolvedAccessLevel);
+          await fetchMatchStatus(userId);
         } else {
           setRelationshipStatus('connected');
+          setMatchStatus(null);
         }
       }
     } catch (error) {
@@ -519,6 +581,123 @@ const ProfilePage = () => {
     }
   };
 
+  const blockUser = async () => {
+    try {
+      setRelationshipLoading(true);
+      setRelationshipError('');
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+
+      const response = await fetch(`${API_URL}/api/friends/by-user/${targetUserId}/block`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to block user');
+      }
+
+      setRelationshipStatus('blocked');
+      setBlockedBySelf(true);
+    } catch (error: any) {
+      setRelationshipError(error?.message || 'Failed to block user.');
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  const unblockUser = async () => {
+    try {
+      setRelationshipLoading(true);
+      setRelationshipError('');
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+
+      const response = await fetch(`${API_URL}/api/friends/by-user/${targetUserId}/unblock`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to unblock user');
+      }
+
+      setBlockedBySelf(false);
+      setRelationshipStatus('connected');
+      await fetchRelationship(String(targetUserId), accessLevel);
+    } catch (error: any) {
+      setRelationshipError(error?.message || 'Failed to unblock user.');
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  const likeProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+      setMatchLoading(true);
+      setMatchError('');
+
+      const now = new Date();
+      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const tzOffsetMinutes = -now.getTimezoneOffset();
+
+      const response = await fetch(`${API_URL}/api/match/like/${targetUserId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ localDate, tzOffsetMinutes })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to like profile');
+      }
+
+      await fetchMatchStatus(targetUserId);
+    } catch (error: any) {
+      setMatchError(error?.message || 'Failed to like profile');
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
+  const unlikeProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const targetUserId = normalizeId(profile?.userId || paramUserId);
+      if (!token || !targetUserId) return;
+      setMatchLoading(true);
+      setMatchError('');
+
+      const response = await fetch(`${API_URL}/api/match/unlike/${targetUserId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to unlike profile');
+      }
+
+      await fetchMatchStatus(targetUserId);
+    } catch (error: any) {
+      setMatchError(error?.message || 'Failed to unlike profile');
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
   const handlePasswordChangeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setPasswordData((prev) => ({ ...prev, [name]: value }));
@@ -651,6 +830,9 @@ const ProfilePage = () => {
   const displayLocation = toTitleCase(profile.place) || 'Not shared';
   const displayGender = toTitleCase(profile.gender) || 'Not shared';
   const displayProfession = profile.profession ? toTitleCase(profile.profession) : 'No profession added';
+  const canShowLikeButton = isPublicView && relationshipStatus === 'connected' && Boolean(matchStatus?.canLike);
+  const isMatched = Boolean(matchStatus?.isMatched);
+  const showHeart = isPublicView && isMatched && Boolean(matchStatus?.heartVisible);
   const infoBlocks = [
     { label: 'Location', value: displayLocation },
     { label: 'Age', value: profile.age ? String(profile.age) : 'Not shared' },
@@ -740,7 +922,10 @@ const ProfilePage = () => {
             </div>
           </button>
           <div className="profile-identity">
-            <h1>{profile.name || 'Unknown User'}</h1>
+            <h1>
+              {profile.name || 'Unknown User'}
+              {showHeart && <span className="profile-match-heart" title="Matched">💖</span>}
+            </h1>
             {profile.username && <p className="profile-username">@{profile.username}</p>}
             <p>{displayProfession}</p>
             <div className="profile-badges">
@@ -768,7 +953,51 @@ const ProfilePage = () => {
                   <button type="button" className="profile-action-primary" onClick={openFriendList}>
                     Friend List
                   </button>
+                  {canShowLikeButton && (
+                    (isMatched || Boolean(matchStatus?.likedByMe)) ? (
+                      <button
+                        type="button"
+                        className="profile-action-secondary"
+                        onClick={unlikeProfile}
+                        disabled={matchLoading}
+                      >
+                        {matchLoading ? 'Updating...' : (isMatched ? 'Unlike' : 'Withdraw Like')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="profile-action-secondary"
+                        onClick={likeProfile}
+                        disabled={matchLoading}
+                      >
+                        {matchLoading ? 'Updating...' : 'Like'}
+                      </button>
+                    )
+                  )}
+                  <button
+                    type="button"
+                    className="profile-action-danger"
+                    onClick={blockUser}
+                    disabled={relationshipLoading}
+                  >
+                    {relationshipLoading ? 'Updating...' : 'Block'}
+                  </button>
                 </>
+              ) : relationshipStatus === 'blocked' ? (
+                blockedBySelf ? (
+                  <button
+                    type="button"
+                    className="profile-action-primary profile-action-full"
+                    onClick={unblockUser}
+                    disabled={relationshipLoading}
+                  >
+                    {relationshipLoading ? 'Updating...' : 'Unblock'}
+                  </button>
+                ) : (
+                  <button type="button" className="profile-action-muted profile-action-full" disabled>
+                    You are blocked
+                  </button>
+                )
               ) : relationshipStatus === 'request_sent' ? (
                 justSentRequest ? (
                   <button type="button" className="profile-action-muted profile-action-full" disabled>
@@ -805,6 +1034,7 @@ const ProfilePage = () => {
                 </p>
               )}
               {relationshipError && <p className="profile-connection-error">{relationshipError}</p>}
+              {matchError && <p className="profile-connection-error">{matchError}</p>}
             </div>
           )}
 
