@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
+import GlobalCallHandler from './components/GlobalCallHandler';
 import './App.css';
 
 // Eager load critical pages
@@ -34,10 +35,20 @@ const LoadingFallback = () => (
 );
 
 function App() {
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      window.dispatchEvent(new CustomEvent('hivemate:soft-refresh'));
+    }, 7000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
   return (
     <ErrorBoundary>
       <ToastProvider>
         <Router>
+          <GlobalCallHandler />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />

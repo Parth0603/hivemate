@@ -1,7 +1,7 @@
 .call-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 2147483000;
   background: rgba(2, 6, 23, 0.82);
   display: flex;
   align-items: center;
@@ -215,6 +215,7 @@
   bottom: var(--space-5);
   width: min(96%, 560px);
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-2);
   padding: var(--space-2);
@@ -222,6 +223,47 @@
   background: rgba(2, 6, 23, 0.74);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.audio-output-selector {
+  height: 46px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 168px;
+}
+
+.audio-output-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #dbeafe;
+}
+
+.audio-output-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.audio-output-dropdown {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.audio-output-dropdown option {
+  color: #0f172a;
 }
 
 .control-button {
@@ -339,6 +381,12 @@
   .control-button {
     min-width: 88px;
     height: 42px;
+  }
+
+  .audio-output-selector {
+    height: 42px;
+    min-width: 138px;
+    padding: 0 8px;
   }
 
   .caller-avatar-large {

@@ -101,19 +101,26 @@ self.addEventListener('push', (event) => {
 
   const title = payload.title || 'HiveMate';
   const isMessageNotification = payload.notificationType === 'message';
-  const primaryActionTitle = isMessageNotification ? 'View message' : 'View request';
+  const isCallNotification = payload.notificationType === 'call_request';
+  const primaryActionTitle = isCallNotification
+    ? 'Answer call'
+    : isMessageNotification
+      ? 'View message'
+      : 'View request';
+  const primaryAction = isCallNotification ? 'answer' : 'open';
   const options = {
     body: payload.body || 'You have a new update.',
     icon: payload.icon || '/icons.svg',
     badge: payload.badge || '/icons.svg',
     tag: payload.tag || 'hivemate-notification',
     renotify: true,
-    vibrate: [120, 60, 120],
+    requireInteraction: isCallNotification,
+    vibrate: isCallNotification ? [180, 80, 180, 80, 180] : [120, 60, 120],
     data: {
       url: payload.url || '/connections'
     },
     actions: [
-      { action: 'open', title: primaryActionTitle },
+      { action: primaryAction, title: primaryActionTitle },
       { action: 'dismiss', title: 'Dismiss' }
     ]
   };
@@ -126,14 +133,36 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'dismiss') return;
 
-  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/connections';
+  let targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/connections';
+  if (event.action === 'answer') {
+    try {
+      const urlObj = new URL(targetUrl, self.location.origin);
+      urlObj.searchParams.set('autoAnswer', '1');
+      targetUrl = urlObj.toString();
+    } catch {
+      // keep original url on parse issues
+    }
+  } else if (!/^https?:\/\//i.test(targetUrl)) {
+    try {
+      targetUrl = new URL(targetUrl, self.location.origin).toString();
+    } catch {
+      // keep original value
+    }
+  }
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          client.navigate(targetUrl);
-          return client.focus();
+          try {
+            await client.focus();
+            if ('navigate' in client) {
+              await client.navigate(targetUrl);
+            }
+            return;
+          } catch {
+            // try next fallback
+          }
         }
       }
       if (clients.openWindow) {

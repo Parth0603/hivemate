@@ -110,8 +110,8 @@
   width: 98px;
   height: 98px;
   border-radius: 999px;
-  border: 3px solid #f8fbff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.2);
+  border: none;
+ 
 }
 
 .profile-avatar {

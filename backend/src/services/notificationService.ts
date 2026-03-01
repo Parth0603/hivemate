@@ -41,7 +41,7 @@ export class NotificationService {
         console.log('WebSocket not available, notification saved to database only');
       }
 
-      // Push notification: friend requests and messages only.
+      // Push notification: friend requests, messages, and calls.
       if (type === 'friend_request') {
         const senderName = data?.senderName || message.split(' sent you')[0] || 'Someone';
         await PushNotificationService.sendFriendRequestPush(userId, senderName);
@@ -49,6 +49,14 @@ export class NotificationService {
         const senderName = data?.senderName || message.split(' sent you')[0] || 'Someone';
         const chatRoomId = data?.chatRoomId ? String(data.chatRoomId) : undefined;
         await PushNotificationService.sendMessagePush(userId, senderName, chatRoomId);
+      } else if (type === 'call_request') {
+        const callerName = data?.callerName || message.split(' is calling you')[0] || 'Someone';
+        const callerId = data?.callerId ? String(data.callerId) : '';
+        const callType = data?.callType === 'video' ? 'video' : 'voice';
+        const callId = data?.callId ? String(data.callId) : '';
+        if (callerId && callId) {
+          await PushNotificationService.sendCallPush(userId, callerName, callerId, callType, callId);
+        }
       }
 
       return notification;
@@ -131,13 +139,19 @@ export class NotificationService {
   /**
    * Create call request notification
    */
-  static async notifyCallRequest(userId: string, callerName: string, callerId: string, callType: 'voice' | 'video') {
+  static async notifyCallRequest(
+    userId: string,
+    callerName: string,
+    callerId: string,
+    callType: 'voice' | 'video',
+    callId?: string
+  ) {
     return this.createNotification(
       userId,
       'call_request',
       `Incoming ${callType} call`,
       `${callerName} is calling you`,
-      { callerId, callType, type: 'call_request' }
+      { callerId, callerName, callType, callId, type: 'call_request' }
     );
   }
 }

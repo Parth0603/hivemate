@@ -97,6 +97,17 @@ const NotificationBell = () => {
   }, []);
 
   useEffect(() => {
+    const onSoftRefresh = () => {
+      loadNotificationsRef.current();
+    };
+
+    window.addEventListener('hivemate:soft-refresh', onSoftRefresh as EventListener);
+    return () => {
+      window.removeEventListener('hivemate:soft-refresh', onSoftRefresh as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     const refreshOnResume = () => {
       if (document.visibilityState === 'visible') {
         loadNotificationsRef.current();
@@ -312,6 +323,26 @@ const NotificationBell = () => {
         navigate(`/chat?room=${encodeURIComponent(chatRoomId)}`);
       } else if (targetUserId) {
         navigate(`/chat/${targetUserId}`);
+      } else {
+        navigate('/chat');
+      }
+      return;
+    }
+
+    if (notification.type === 'call_request') {
+      const callId = normalizeId(notification?.data?.callId);
+      const callType = notification?.data?.callType === 'video' ? 'video' : 'voice';
+      const callerId = normalizeId(notification?.data?.callerId);
+      const callerName = String(notification?.data?.callerName || 'Unknown');
+      if (callId) {
+        const params = new URLSearchParams({
+          incomingCall: '1',
+          callId,
+          type: callType,
+          from: callerId,
+          name: callerName
+        });
+        navigate(`/chat?${params.toString()}`);
       } else {
         navigate('/chat');
       }

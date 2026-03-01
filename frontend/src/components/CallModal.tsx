@@ -8,11 +8,42 @@ interface CallModalProps {
   isIncoming: boolean;
   callerName?: string;
   callerId?: string;
+  autoAccept?: boolean;
   onAccept: () => void;
   onReject: () => void;
   onEnd: () => void;
   socket: any;
 }
+
+type OutputMode = 'speaker' | 'earpiece' | 'bluetooth';
+type OutputOption = {
+  mode: OutputMode;
+  label: string;
+  sinkId: string;
+  available: boolean;
+};
+
+const SpeakerIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M4 10h4l5-4v12l-5-4H4z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    <path d="M16 9.5a4 4 0 0 1 0 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M18.8 7a7.2 7.2 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const EarpieceIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M15.7 8.6a3.7 3.7 0 0 0-7.4 0v1.2c0 1.3-.5 2.5-1.3 3.4L6 14.4h12l-1-1.2a5 5 0 0 1-1.3-3.4Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    <path d="M10.5 17.4a1.5 1.5 0 0 0 3 0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const BluetoothIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M10 4v16l7-6-5-4 5-4z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    <path d="m4.6 7.2 5 4.8-5 4.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 const CallModal = ({
   callId,
@@ -20,6 +51,7 @@ const CallModal = ({
   isIncoming,
   callerName,
   callerId,
+  autoAccept = false,
   onAccept,
   onReject,
   onEnd,
@@ -31,6 +63,12 @@ const CallModal = ({
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === 'video');
   const [hasLocalVideoTrack, setHasLocalVideoTrack] = useState(callType === 'video');
+  const [selectedOutputMode, setSelectedOutputMode] = useState<OutputMode>('speaker');
+  const [audioOutputOptions, setAudioOutputOptions] = useState<OutputOption[]>([
+    { mode: 'speaker', label: 'Speaker', sinkId: 'default', available: true },
+    { mode: 'earpiece', label: 'Earpiece', sinkId: '', available: false },
+    { mode: 'bluetooth', label: 'Bluetooth', sinkId: '', available: false }
+  ]);
   const [error, setError] = useState<string | null>(null);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -41,6 +79,9 @@ const CallModal = ({
   const pendingOfferRef = useRef<any | null>(null);
   const pendingIceCandidatesRef = useRef<any[]>([]);
   const hasAcceptedIncomingRef = useRef(!isIncoming);
+  const autoAcceptTriggeredRef = useRef(false);
+  const audioOutputSupportedRef = useRef(false);
+  const [audioOutputSupported, setAudioOutputSupported] = useState(false);
 
   const normalizeUserId = (value: any): string => {
     if (!value) return '';
@@ -50,6 +91,8 @@ const CallModal = ({
   };
 
   useEffect(() => {
+    loadAudioOutputOptions();
+
     if (socket) {
       socket.on('webrtc:offer', handleOffer);
       socket.on('webrtc:answer', handleAnswer);
@@ -75,6 +118,18 @@ const CallModal = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (audioOutputSupported) {
+      applySelectedAudioOutput(selectedOutputMode);
+    }
+  }, [selectedOutputMode, callStatus, audioOutputOptions]);
+
+  useEffect(() => {
+    if (!isIncoming || !autoAccept || callStatus !== 'ringing' || autoAcceptTriggeredRef.current) return;
+    autoAcceptTriggeredRef.current = true;
+    handleAcceptCall();
+  }, [autoAccept, isIncoming, callStatus]);
 
   const initializeCall = async (): Promise<boolean> => {
     try {
@@ -178,6 +233,69 @@ const CallModal = ({
     return peerConnection;
   };
 
+  const loadAudioOutputOptions = async () => {
+    const mediaPrototype: any = typeof HTMLMediaElement !== 'undefined' ? (HTMLMediaElement as any).prototype : null;
+    const supportsSetSinkId = Boolean(mediaPrototype && typeof mediaPrototype.setSinkId === 'function');
+    audioOutputSupportedRef.current = supportsSetSinkId;
+    setAudioOutputSupported(supportsSetSinkId);
+    if (!supportsSetSinkId) return;
+
+    if (!navigator?.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter((device) => device.kind === 'audiooutput');
+      if (!outputs.length) return;
+
+      const findSink = (matcher: RegExp): string =>
+        outputs.find((device) => matcher.test((device.label || '').toLowerCase()))?.deviceId || '';
+
+      const bluetoothSink = findSink(/bluetooth|airpods|buds|headset|hands[- ]?free/);
+      const earpieceSink = findSink(/earpiece|receiver|phone/);
+      const speakerSink =
+        findSink(/speaker|loudspeaker|headphone|headset/) ||
+        outputs.find((device) => device.deviceId === 'default')?.deviceId ||
+        outputs[0].deviceId ||
+        'default';
+
+      setAudioOutputOptions([
+        { mode: 'speaker', label: 'Speaker', sinkId: speakerSink || 'default', available: true },
+        { mode: 'earpiece', label: 'Earpiece', sinkId: earpieceSink, available: Boolean(earpieceSink) },
+        { mode: 'bluetooth', label: 'Bluetooth', sinkId: bluetoothSink, available: Boolean(bluetoothSink) }
+      ]);
+    } catch (err) {
+      console.error('Failed to enumerate audio output devices:', err);
+    }
+  };
+
+  const applySelectedAudioOutput = async (mode: OutputMode) => {
+    if (!audioOutputSupportedRef.current) return;
+    const selected = audioOutputOptions.find((option) => option.mode === mode);
+    if (!selected) return;
+    if (!selected.available) {
+      return;
+    }
+
+    const sinkId = selected.sinkId || 'default';
+    const elements: Array<any> = [remoteAudioRef.current, remoteVideoRef.current].filter(Boolean);
+    if (!elements.length) return;
+
+    try {
+      let applied = false;
+      for (const element of elements) {
+        if (typeof element.setSinkId === 'function') {
+          await element.setSinkId(sinkId);
+          applied = true;
+        }
+      }
+      if (applied && error) {
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Failed to switch audio output:', err);
+      setError(`Could not switch to ${selected.label}.`);
+    }
+  };
+
   const processOffer = async (data: any) => {
     try {
       if (!peerConnectionRef.current) {
@@ -252,13 +370,27 @@ const CallModal = ({
     }
   };
 
-  const handleCallAccepted = () => {
+  const handleCallAccepted = async () => {
     setCallStatus('connecting');
+    if (!isIncoming && peerConnectionRef.current?.localDescription?.type === 'offer') {
+      try {
+        const targetUserId = normalizeUserId(callerId);
+        if (targetUserId) {
+          socket.emit('webrtc:offer', {
+            targetUserId,
+            offer: peerConnectionRef.current.localDescription,
+            callId
+          });
+        }
+      } catch (err) {
+        console.error('Failed to re-send offer after call acceptance:', err);
+      }
+    }
   };
 
-  const handleCallRejected = () => {
+  const handleCallRejected = (data?: any) => {
     setCallStatus('ended');
-    setError('Call was declined');
+    setError(data?.reason === 'busy' ? 'User is busy on another call' : 'Call was declined');
     setTimeout(() => onReject(), 1200);
   };
 
@@ -286,12 +418,16 @@ const CallModal = ({
 
   const handleRejectCall = () => {
     const initiatorId = normalizeUserId(callerId);
-    socket.emit('call:reject', { callId, initiatorId });
+    socket.emit('call:reject', { callId, initiatorId, reason: 'declined' });
     onReject();
   };
 
   const handleEndCall = () => {
     onEnd();
+  };
+
+  const handleAudioOutputChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedOutputMode(event.target.value as OutputMode);
   };
 
   const toggleMute = () => {
@@ -318,6 +454,12 @@ const CallModal = ({
       peerConnectionRef.current = null;
     }
   };
+
+  const selectedOutputIcon = selectedOutputMode === 'bluetooth'
+    ? <BluetoothIcon />
+    : selectedOutputMode === 'earpiece'
+      ? <EarpieceIcon />
+      : <SpeakerIcon />;
 
   return (
     <div className="call-modal-overlay">
@@ -384,6 +526,22 @@ const CallModal = ({
             </div>
 
             <div className="call-controls">
+              {audioOutputSupported && (
+                <label className="audio-output-selector" aria-label="Audio output">
+                  <span className="audio-output-icon">{selectedOutputIcon}</span>
+                  <select
+                    value={selectedOutputMode}
+                    onChange={handleAudioOutputChange}
+                    className="audio-output-dropdown"
+                  >
+                    {audioOutputOptions.map((option) => (
+                      <option key={option.mode} value={option.mode} disabled={!option.available}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <button
                 className={`control-button ${isMuted ? 'active' : ''}`}
                 onClick={toggleMute}

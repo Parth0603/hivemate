@@ -4,6 +4,7 @@ import CallSession from '../models/CallSession';
 import { InteractionService } from '../services/interactionService';
 import { getWebSocketServer } from '../websocket/server';
 import Profile from '../models/Profile';
+import { NotificationService } from '../services/notificationService';
 
 export const initiateCall = async (req: Request, res: Response) => {
   try {
@@ -69,13 +70,13 @@ export const initiateCall = async (req: Request, res: Response) => {
 
     await callSession.save();
 
+    const initiatorProfile = mongoose.isValidObjectId(initiatorId)
+      ? await Profile.findOne({ userId: initiatorId })
+      : null;
+
     // Send call notification via WebSocket
     try {
       const wsServer = getWebSocketServer();
-      const initiatorProfile = mongoose.isValidObjectId(initiatorId)
-        ? await Profile.findOne({ userId: initiatorId })
-        : null;
-
       wsServer.emitToUser(participantId, 'call:incoming', {
         callId: callSession._id,
         type,
@@ -83,21 +84,20 @@ export const initiateCall = async (req: Request, res: Response) => {
         initiatorName: initiatorProfile?.name,
         timestamp: new Date()
       });
-
-      // Send notification
-      wsServer.emitToUser(participantId, 'notification:new', {
-        type: 'call',
-        title: `Incoming ${type} call`,
-        message: `${initiatorProfile?.name || 'Someone'} is calling you`,
-        data: {
-          callId: callSession._id,
-          type,
-          initiatorId
-        },
-        timestamp: new Date()
-      });
     } catch (wsError) {
       console.error('WebSocket call notification error:', wsError);
+    }
+
+    try {
+      await NotificationService.notifyCallRequest(
+        participantId,
+        initiatorProfile?.name || 'Someone',
+        String(initiatorId),
+        type,
+        String(callSession._id)
+      );
+    } catch (notificationError) {
+      console.error('Call notification persistence/push error:', notificationError);
     }
 
     res.status(201).json({

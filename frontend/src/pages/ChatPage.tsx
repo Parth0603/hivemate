@@ -78,6 +78,7 @@ const ChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<Socket | null>(null);
   const selectedChatRoomRef = useRef<ChatRoom | null>(null);
+  const hasActiveCallRef = useRef(false);
   const typingStopTimeoutRef = useRef<number | null>(null);
   const photoCacheRef = useRef<Record<string, string>>({});
 
@@ -146,6 +147,10 @@ const ChatPage = () => {
   }, [selectedChatRoom]);
 
   useEffect(() => {
+    hasActiveCallRef.current = showCallModal && Boolean(currentCall);
+  }, [showCallModal, currentCall]);
+
+  useEffect(() => {
     if (!selectedChatRoom) return;
 
     // Fallback sync for tunnel/mobile cases when socket delivery is delayed.
@@ -155,6 +160,20 @@ const ChatPage = () => {
 
     return () => clearInterval(interval);
   }, [selectedChatRoom?.chatRoomId]);
+
+  useEffect(() => {
+    const onSoftRefresh = () => {
+      loadChatRooms();
+      if (selectedChatRoomRef.current) {
+        loadMessages(selectedChatRoomRef.current.chatRoomId);
+      }
+    };
+
+    window.addEventListener('hivemate:soft-refresh', onSoftRefresh as EventListener);
+    return () => {
+      window.removeEventListener('hivemate:soft-refresh', onSoftRefresh as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -303,6 +322,20 @@ const ChatPage = () => {
     // Listen for incoming calls
     socket.on('call:incoming', (data: any) => {
       console.log('Incoming call:', data);
+      if ((window as any).__hivemateCallOverlayActive) {
+        return;
+      }
+      if (hasActiveCallRef.current) {
+        const initiatorId = normalizeId(data.initiatorId);
+        if (initiatorId) {
+          socket.emit('call:reject', {
+            callId: data.callId,
+            initiatorId,
+            reason: 'busy'
+          });
+        }
+        return;
+      }
       setCurrentCall({
         callId: data.callId,
         type: data.type,

@@ -382,7 +382,7 @@ const SearchPage = () => {
             <div className="coming-soon-card">
               <ComingSoonIcon />
               <h3>Gigs Search Is Under Development</h3>
-              <p>This section is coming soon, similar to Find a Team Mate.</p>
+              <p>This section is coming soon.</p>
             </div>
           ) : (
             <>

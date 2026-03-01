@@ -148,10 +148,11 @@ export class WebSocketServer {
       });
 
       socket.on('call:reject', (data) => {
-        const { callId, initiatorId } = data;
+        const { callId, initiatorId, reason } = data;
         this.emitToUser(initiatorId, 'call:rejected', {
           callId,
           rejectedBy: userId,
+          reason: reason || 'declined',
           timestamp: new Date()
         });
       });

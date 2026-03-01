@@ -8,7 +8,7 @@ type PushPayload = {
   tag?: string;
   icon?: string;
   badge?: string;
-  notificationType?: 'friend_request' | 'message';
+  notificationType?: 'friend_request' | 'message' | 'call_request';
 };
 
 class PushNotificationService {
@@ -124,6 +124,62 @@ class PushNotificationService {
       icon: '/icons.svg',
       badge: '/icons.svg',
       notificationType: 'message'
+    };
+
+    await Promise.all(
+      subscriptions.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.keys.p256dh,
+                auth: sub.keys.auth
+              }
+            },
+            JSON.stringify(payload)
+          );
+        } catch (error: any) {
+          const statusCode = error?.statusCode;
+          if (statusCode === 404 || statusCode === 410) {
+            await PushSubscription.deleteOne({ endpoint: sub.endpoint });
+            return;
+          }
+          console.error('Push send failed:', error?.message || error);
+        }
+      })
+    );
+  }
+
+  static async sendCallPush(
+    recipientUserId: string,
+    callerName: string,
+    callerId: string,
+    callType: 'voice' | 'video',
+    callId: string
+  ) {
+    this.initialize();
+    if (!this.isConfigured()) return;
+
+    const subscriptions = await PushSubscription.find({ userId: recipientUserId }).lean();
+    if (!subscriptions.length) return;
+
+    const params = new URLSearchParams({
+      incomingCall: '1',
+      callId,
+      type: callType,
+      from: callerId,
+      name: callerName || 'Unknown'
+    });
+
+    const payload: PushPayload = {
+      title: `Incoming ${callType} call`,
+      body: `${callerName || 'Someone'} is calling you on HiveMate.`,
+      url: `/chat?${params.toString()}`,
+      tag: `call-${callId}`,
+      icon: '/icons.svg',
+      badge: '/icons.svg',
+      notificationType: 'call_request'
     };
 
     await Promise.all(

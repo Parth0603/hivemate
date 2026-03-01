@@ -33,6 +33,17 @@ const ConnectionsPage = () => {
   }, []);
 
   useEffect(() => {
+    const onSoftRefresh = () => {
+      fetchRequests();
+    };
+
+    window.addEventListener('hivemate:soft-refresh', onSoftRefresh as EventListener);
+    return () => {
+      window.removeEventListener('hivemate:soft-refresh', onSoftRefresh as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
