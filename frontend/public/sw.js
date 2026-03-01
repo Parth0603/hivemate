@@ -87,3 +87,59 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+// Push event - friend request notifications (PWA).
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'HiveMate', body: event.data.text() };
+  }
+
+  const title = payload.title || 'HiveMate';
+  const isMessageNotification = payload.notificationType === 'message';
+  const primaryActionTitle = isMessageNotification ? 'View message' : 'View request';
+  const options = {
+    body: payload.body || 'You have a new update.',
+    icon: payload.icon || '/icons.svg',
+    badge: payload.badge || '/icons.svg',
+    tag: payload.tag || 'hivemate-notification',
+    renotify: true,
+    vibrate: [120, 60, 120],
+    data: {
+      url: payload.url || '/connections'
+    },
+    actions: [
+      { action: 'open', title: primaryActionTitle },
+      { action: 'dismiss', title: 'Dismiss' }
+    ]
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') return;
+
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/connections';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+      return undefined;
+    })
+  );
+});

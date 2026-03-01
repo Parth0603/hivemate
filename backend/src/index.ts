@@ -60,6 +60,7 @@ import subscriptionRoutes from './routes/subscription';
 import gigRoutes from './routes/gig';
 import searchRoutes from './routes/search';
 import notificationRoutes from './routes/notification';
+import pushRoutes from './routes/push';
 
 // API routes
 app.get('/api', (req, res) => {
@@ -81,6 +82,7 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', pushRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {

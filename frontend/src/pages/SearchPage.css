@@ -431,7 +431,7 @@
   height: 52px;
   border-radius: 999px;
   border: 2px solid #f6f9ff;
-  box-shadow: 0 6px 14px rgba(17, 33, 62, 0.16);
+  box-shadow: none;
 }
 
 .search-page .profile-avatar img {

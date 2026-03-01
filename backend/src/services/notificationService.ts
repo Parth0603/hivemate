@@ -1,5 +1,6 @@
 import Notification from '../models/Notification';
 import { getWebSocketServer } from '../websocket/server';
+import PushNotificationService from './pushNotificationService';
 
 export class NotificationService {
   /**
@@ -40,6 +41,16 @@ export class NotificationService {
         console.log('WebSocket not available, notification saved to database only');
       }
 
+      // Push notification: friend requests and messages only.
+      if (type === 'friend_request') {
+        const senderName = data?.senderName || message.split(' sent you')[0] || 'Someone';
+        await PushNotificationService.sendFriendRequestPush(userId, senderName);
+      } else if (type === 'message') {
+        const senderName = data?.senderName || message.split(' sent you')[0] || 'Someone';
+        const chatRoomId = data?.chatRoomId ? String(data.chatRoomId) : undefined;
+        await PushNotificationService.sendMessagePush(userId, senderName, chatRoomId);
+      }
+
       return notification;
     } catch (error) {
       console.error('Create notification error:', error);
@@ -69,7 +80,7 @@ export class NotificationService {
       'friend_request',
       'New friend request',
       `${senderName} sent you a friend request`,
-      { senderId, type: 'friend_request' }
+      { senderId, senderName, type: 'friend_request' }
     );
   }
 
@@ -102,13 +113,18 @@ export class NotificationService {
   /**
    * Create message notification
    */
-  static async notifyMessage(userId: string, senderName: string, senderId: string) {
+  static async notifyMessage(
+    userId: string,
+    senderName: string,
+    senderId: string,
+    extraData?: Record<string, any>
+  ) {
     return this.createNotification(
       userId,
       'message',
       'New message',
       `${senderName} sent you a message`,
-      { senderId, type: 'message' }
+      { senderId, type: 'message', ...(extraData || {}) }
     );
   }
 

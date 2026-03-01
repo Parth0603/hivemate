@@ -192,6 +192,22 @@
   white-space: nowrap;
 }
 
+.chat-unread-badge {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .chat-window {
   display: flex;
   flex-direction: column;

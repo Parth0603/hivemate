@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl, getWsBaseUrl } from '../utils/runtimeConfig';
+import { ensureFriendRequestPushSubscription } from '../utils/pushNotifications';
 import './NotificationBell.css';
 
 interface Notification {
@@ -38,16 +40,44 @@ const normalizeNotification = (notification: any): Notification => ({
   createdAt: notification?.createdAt || notification?.timestamp || new Date().toISOString()
 });
 
+const getNotificationKey = (notification: Notification): string => {
+  const requestId = notification?.data?.requestId;
+  const messageId = notification?.data?.messageId;
+  const senderId = notification?.data?.senderId;
+  if (requestId) return `friend:${requestId}`;
+  if (messageId) return `message:${messageId}`;
+  return `${notification.type}:${senderId || ''}:${notification.message}:${notification.createdAt}`;
+};
+
+const normalizeId = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    if (value.$oid) return String(value.$oid);
+    if (value._id) return normalizeId(value._id);
+    if (typeof value.toString === 'function') {
+      const asText = value.toString();
+      if (asText && asText !== '[object Object]') return asText;
+    }
+  }
+  return String(value);
+};
+
 const NotificationBell = () => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const loadNotificationsRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     loadNotifications();
     connectWebSocket();
+    ensureFriendRequestPushSubscription().catch((error) => {
+      console.error('Push subscription setup failed:', error);
+    });
 
     // Close dropdown when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
@@ -59,9 +89,36 @@ const NotificationBell = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      if (socket) {
-        socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshOnResume = () => {
+      if (document.visibilityState === 'visible') {
+        loadNotificationsRef.current();
+      }
+    };
+
+    const refreshOnFocus = () => {
+      loadNotificationsRef.current();
+    };
+
+    const refreshOnOnline = () => {
+      loadNotificationsRef.current();
+    };
+
+    document.addEventListener('visibilitychange', refreshOnResume);
+    window.addEventListener('focus', refreshOnFocus);
+    window.addEventListener('online', refreshOnOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnResume);
+      window.removeEventListener('focus', refreshOnFocus);
+      window.removeEventListener('online', refreshOnOnline);
     };
   }, []);
 
@@ -71,25 +128,32 @@ const NotificationBell = () => {
 
     const newSocket = io(WS_URL, {
       auth: { token },
-      path: '/socket.io'
+      path: '/socket.io',
+      transports: ['websocket', 'polling']
     });
 
     newSocket.on('connect', () => {
       console.log('WebSocket connected for notifications');
+      loadNotificationsRef.current();
     });
 
     newSocket.on('notification:new', (notification: any) => {
       console.log('New notification received:', notification);
       const normalized = normalizeNotification(notification);
-      setNotifications(prev => [normalized, ...prev]);
-      setUnreadCount(prev => prev + 1);
+      setNotifications(prev => {
+        const nextKey = getNotificationKey(normalized);
+        const exists = prev.some((item) => getNotificationKey(item) === nextKey);
+        if (exists) return prev;
+        return [normalized, ...prev];
+      });
+      setUnreadCount(prev => prev + (normalized.read ? 0 : 1));
     });
 
     newSocket.on('disconnect', () => {
       console.log('WebSocket disconnected');
     });
 
-    setSocket(newSocket);
+    socketRef.current = newSocket;
   };
 
   const loadNotifications = async () => {
@@ -103,13 +167,29 @@ const NotificationBell = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setNotifications((data.notifications || []).map(normalizeNotification));
+        const normalizedList: Notification[] = (data.notifications || []).map(normalizeNotification);
+        const dedupedMap = new Map<string, Notification>();
+        normalizedList.forEach((item) => {
+          const key = getNotificationKey(item);
+          if (!dedupedMap.has(key)) dedupedMap.set(key, item);
+        });
+        setNotifications(Array.from(dedupedMap.values()));
         setUnreadCount(data.unreadCount);
       }
     } catch (error) {
       console.error('Failed to load notifications:', error);
     }
   };
+
+  useEffect(() => {
+    loadNotificationsRef.current = loadNotifications;
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadNotificationsRef.current();
+    }
+  }, [isOpen]);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -207,6 +287,38 @@ const NotificationBell = () => {
     return date.toLocaleDateString();
   };
 
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.read) {
+      await markAsRead(notification._id);
+    }
+
+    setIsOpen(false);
+
+    if (notification.type === 'friend_request' || notification.type === 'friend_accepted') {
+      navigate('/connections');
+      return;
+    }
+
+    if (notification.type === 'message') {
+      const chatRoomId = normalizeId(notification?.data?.chatRoomId);
+      const targetUserId = normalizeId(
+        notification?.data?.senderId ||
+        notification?.data?.fromUserId ||
+        notification?.data?.userId ||
+        notification?.data?.callerId
+      );
+
+      if (chatRoomId) {
+        navigate(`/chat?room=${encodeURIComponent(chatRoomId)}`);
+      } else if (targetUserId) {
+        navigate(`/chat/${targetUserId}`);
+      } else {
+        navigate('/chat');
+      }
+      return;
+    }
+  };
+
   return (
     <div className="notification-bell-container" ref={dropdownRef}>
       <button
@@ -246,7 +358,7 @@ const NotificationBell = () => {
                 <div
                   key={notification._id}
                   className={`notification-item ${notification.read ? 'read' : 'unread'}`}
-                  onClick={() => !notification.read && markAsRead(notification._id)}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="notification-icon">
                     {getNotificationIcon(notification.type)}

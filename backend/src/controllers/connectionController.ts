@@ -9,6 +9,18 @@ import { NotificationService } from '../services/notificationService';
 import { ChatService } from '../services/chatService';
 import { CacheService } from '../services/cacheService';
 
+const emitPendingConnectionsUpdate = (userIds: string[], payload: Record<string, any> = {}) => {
+  try {
+    const wsServer = getWebSocketServer();
+    wsServer.emitToUsers(userIds, 'connections:pending_updated', {
+      ...payload,
+      timestamp: new Date()
+    });
+  } catch (wsError) {
+    console.error('Pending connections socket emit error:', wsError);
+  }
+};
+
 export const sendConnectionRequest = async (req: Request, res: Response) => {
   try {
     const senderId = (req as any).userId;
@@ -80,31 +92,40 @@ export const sendConnectionRequest = async (req: Request, res: Response) => {
         await existingRequest.save();
 
         try {
-          const wsServer = getWebSocketServer();
           const senderProfile = await Profile.findOne({ userId: senderId });
-
-          wsServer.emitToUser(receiverId, 'notification:new', {
-            type: 'friend_request',
-            title: 'New Connection Request',
-            message: `${senderProfile?.name || 'Someone'} sent you a connection request`,
-            data: {
-              requestId: existingRequest._id,
-              senderId,
-              senderName: senderProfile?.name
-            },
-            timestamp: new Date()
-          });
-
           if (mongoose.connection.readyState === 1) {
             await NotificationService.notifyFriendRequest(
               receiverId,
               senderProfile?.name || 'Someone',
               senderId
             );
+          } else {
+            const wsServer = getWebSocketServer();
+            wsServer.emitToUser(receiverId, 'notification:new', {
+              type: 'friend_request',
+              title: 'New friend request',
+              message: `${senderProfile?.name || 'Someone'} sent you a friend request`,
+              data: {
+                requestId: existingRequest._id,
+                senderId,
+                senderName: senderProfile?.name
+              },
+              timestamp: new Date()
+            });
           }
         } catch (notificationError) {
           console.error('Friend request notification error:', notificationError);
         }
+
+        emitPendingConnectionsUpdate(
+          [senderId.toString(), receiverId.toString()],
+          {
+            action: 'request_sent',
+            requestId: existingRequest._id,
+            senderId: senderId.toString(),
+            receiverId: receiverId.toString()
+          }
+        );
 
         return res.status(201).json({
           message: 'Connection request sent successfully',
@@ -156,32 +177,42 @@ export const sendConnectionRequest = async (req: Request, res: Response) => {
 
     // Emit real-time notification to receiver
     try {
-      const wsServer = getWebSocketServer();
       const senderProfile = await Profile.findOne({ userId: senderId });
-      
-      wsServer.emitToUser(receiverId, 'notification:new', {
-        type: 'friend_request',
-        title: 'New Connection Request',
-        message: `${senderProfile?.name || 'Someone'} sent you a connection request`,
-        data: {
-          requestId: request._id,
-          senderId,
-          senderName: senderProfile?.name
-        },
-        timestamp: new Date()
-      });
 
-      // Persist notification if database is connected
+      // Persist + realtime via NotificationService if DB is connected.
       if (mongoose.connection.readyState === 1) {
         await NotificationService.notifyFriendRequest(
           receiverId,
           senderProfile?.name || 'Someone',
           senderId
         );
+      } else {
+        const wsServer = getWebSocketServer();
+        wsServer.emitToUser(receiverId, 'notification:new', {
+          type: 'friend_request',
+          title: 'New friend request',
+          message: `${senderProfile?.name || 'Someone'} sent you a friend request`,
+          data: {
+            requestId: request._id,
+            senderId,
+            senderName: senderProfile?.name
+          },
+          timestamp: new Date()
+        });
       }
     } catch (notificationError) {
       console.error('Friend request notification error:', notificationError);
     }
+
+    emitPendingConnectionsUpdate(
+      [senderId.toString(), receiverId.toString()],
+      {
+        action: 'request_sent',
+        requestId: request._id,
+        senderId: senderId.toString(),
+        receiverId: receiverId.toString()
+      }
+    );
 
     res.status(201).json({
       message: 'Connection request sent successfully',
@@ -306,6 +337,16 @@ export const acceptConnectionRequest = async (req: Request, res: Response) => {
         console.error('WebSocket notification error:', wsError);
       }
 
+      emitPendingConnectionsUpdate(
+        [request.senderId.toString(), request.receiverId.toString()],
+        {
+          action: 'request_accepted',
+          requestId: request._id,
+          senderId: request.senderId.toString(),
+          receiverId: request.receiverId.toString()
+        }
+      );
+
       return res.json({
         message: 'Connection request accepted and friendship established',
         friendship: {
@@ -316,6 +357,16 @@ export const acceptConnectionRequest = async (req: Request, res: Response) => {
         }
       });
     }
+
+    emitPendingConnectionsUpdate(
+      [request.senderId.toString(), request.receiverId.toString()],
+      {
+        action: 'request_accepted',
+        requestId: request._id,
+        senderId: request.senderId.toString(),
+        receiverId: request.receiverId.toString()
+      }
+    );
 
     res.json({
       message: 'Connection request accepted',
@@ -384,6 +435,16 @@ export const declineConnectionRequest = async (req: Request, res: Response) => {
     request.status = 'declined';
     request.respondedAt = new Date();
     await request.save();
+
+    emitPendingConnectionsUpdate(
+      [request.senderId.toString(), request.receiverId.toString()],
+      {
+        action: 'request_declined',
+        requestId: request._id,
+        senderId: request.senderId.toString(),
+        receiverId: request.receiverId.toString()
+      }
+    );
 
     res.json({
       message: 'Connection request declined',
@@ -506,6 +567,16 @@ export const cancelConnectionRequest = async (req: Request, res: Response) => {
     }
 
     await ConnectionRequest.findByIdAndDelete(requestId);
+
+    emitPendingConnectionsUpdate(
+      [request.senderId.toString(), request.receiverId.toString()],
+      {
+        action: 'request_cancelled',
+        requestId: requestId.toString(),
+        senderId: request.senderId.toString(),
+        receiverId: request.receiverId.toString()
+      }
+    );
 
     res.json({
       message: 'Connection request cancelled',

@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import Message from '../models/Message';
+import Notification from '../models/Notification';
 import { ChatService } from '../services/chatService';
 import { InteractionService } from '../services/interactionService';
+import { NotificationService } from '../services/notificationService';
 import { getWebSocketServer } from '../websocket/server';
 import Profile from '../models/Profile';
 import Friendship from '../models/Friendship';
@@ -80,18 +83,30 @@ export const sendMessage = async (req: Request, res: Response) => {
         timestamp: message.timestamp
       });
 
-      // Send notification
-      wsServer.emitToUser(receiverId, 'notification:new', {
-        type: 'message',
-        title: 'New Message',
-        message: `${senderProfile?.name || 'Someone'} sent you a message`,
-        data: {
-          messageId: message._id,
-          chatRoomId: roomId,
-          senderId
-        },
-        timestamp: new Date()
-      });
+      // Persist + realtime notification from one place to avoid duplicates/missed reload.
+      if (mongoose.connection.readyState === 1) {
+        await NotificationService.notifyMessage(
+          receiverId,
+          senderProfile?.name || 'Someone',
+          senderId,
+          {
+            messageId: message._id,
+            chatRoomId: roomId
+          }
+        );
+      } else {
+        wsServer.emitToUser(receiverId, 'notification:new', {
+          type: 'message',
+          title: 'New message',
+          message: `${senderProfile?.name || 'Someone'} sent you a message`,
+          data: {
+            messageId: message._id,
+            chatRoomId: roomId,
+            senderId
+          },
+          timestamp: new Date()
+        });
+      }
 
       // Mark as delivered
       message.delivered = true;
@@ -173,6 +188,29 @@ export const getChatHistory = async (req: Request, res: Response) => {
       { read: true }
     );
 
+    // Remove message notifications for this conversation once user has opened/read it.
+    const otherParticipantIds = Array.from(
+      new Set(
+        messages
+          .map((m) => m.senderId?.toString())
+          .filter((id) => Boolean(id) && id !== userId)
+      )
+    );
+
+    const messageNotificationQuery: any = {
+      userId,
+      type: 'message',
+      $or: [{ 'data.chatRoomId': chatRoomId }]
+    };
+
+    if (otherParticipantIds.length > 0) {
+      messageNotificationQuery.$or.push({
+        'data.senderId': { $in: otherParticipantIds }
+      });
+    }
+
+    await Notification.deleteMany(messageNotificationQuery);
+
     res.json({
       messages: messages.reverse().map(msg => ({
         id: msg._id,
@@ -253,7 +291,14 @@ export const getUserChats = async (req: Request, res: Response) => {
             timestamp: lastMessage.timestamp,
             senderId: lastMessage.senderId
           } : null,
-          lastMessageAt: room.lastMessageAt
+          lastMessageAt: room.lastMessageAt,
+          unreadCount: await Message.countDocuments({
+            chatRoomId: room._id,
+            receiverId: userId,
+            read: false,
+            deletedForEveryone: { $ne: true },
+            deletedForUsers: { $ne: userId }
+          })
         };
       })
     );

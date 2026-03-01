@@ -17,9 +17,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-// Register service worker only in production.
-// In development/tunnel mode, force unregister to avoid stale cached modules.
-if (import.meta.env.PROD) {
+// Register service worker in production and secure contexts (for PWA push on Android/devtunnel).
+if (import.meta.env.PROD || window.isSecureContext) {
   serviceWorkerRegistration.register();
 } else {
   serviceWorkerRegistration.unregister();

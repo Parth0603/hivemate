@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { EncryptionService } from '../utils/encryption';
 import CallModal from '../components/CallModal';
@@ -22,6 +22,7 @@ interface ChatRoom {
     senderId: string;
   } | null;
   lastMessageAt: Date;
+  unreadCount?: number;
 }
 
 interface Message {
@@ -46,6 +47,7 @@ const isLikelyCiphertext = (text: string): boolean => {
 
 const ChatPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { friendshipId } = useParams();
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [selectedChatRoom, setSelectedChatRoom] = useState<ChatRoom | null>(null);
@@ -82,6 +84,7 @@ const ChatPage = () => {
   const API_URL = getApiBaseUrl();
   const WS_URL = getWsBaseUrl();
   const currentUserId = localStorage.getItem('userId');
+  const roomFromQuery = new URLSearchParams(location.search).get('room');
   const currentUserIdStr = String(currentUserId || '');
   const normalizeId = (value: any): string => {
     if (!value) return '';
@@ -326,7 +329,18 @@ const ChatPage = () => {
         setChatRooms(chats);
         await hydrateParticipantPhotos(chats);
         
-        // If friendshipId is provided, select that chat
+        // If room query is provided, select that exact chat first.
+        const normalizedRoomId = normalizeId(roomFromQuery);
+        if (normalizedRoomId && chats.length > 0) {
+          const room = chats.find((c: ChatRoom) => String(c.chatRoomId) === normalizedRoomId);
+          if (room) {
+            setSelectedChatRoom(room);
+            if (isMobileView) setShowSidebarOnMobile(false);
+            return;
+          }
+        }
+
+        // If friendshipId is provided, select by participant user id.
         if (friendshipId && chats.length > 0) {
           const targetId = normalizeId(friendshipId);
           const chat = chats.find((c: ChatRoom) =>
@@ -454,6 +468,13 @@ const ChatPage = () => {
         );
         
         setMessages(decryptedMessages);
+        setChatRooms((prev) =>
+          prev.map((room) =>
+            String(room.chatRoomId) === String(chatRoomId)
+              ? { ...room, unreadCount: 0 }
+              : room
+          )
+        );
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -838,6 +859,11 @@ const ChatPage = () => {
                     {room.lastMessageAt && (
                       <span className="last-message-time">
                         {formatDate(new Date(room.lastMessageAt))}
+                      </span>
+                    )}
+                    {Number(room.unreadCount || 0) > 0 && (
+                      <span className="chat-unread-badge">
+                        {room.unreadCount! > 99 ? '99+' : room.unreadCount}
                       </span>
                     )}
                   </div>
